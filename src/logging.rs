@@ -29,7 +29,6 @@ pub fn setup_logging() -> Result<WorkerGuard> {
         .try_init()
         .context("Failed to initialize logging subsystem")?;
 
-    // Return the guard so it's not dropped
     Ok(guard)
 }
 

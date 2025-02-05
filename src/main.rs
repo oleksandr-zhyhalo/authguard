@@ -1,7 +1,5 @@
 use anyhow::{Context, Result};
-// use crate::{aws_iot, config, logging};
 
-// Declare modules
 mod config;
 mod aws_iot;
 mod logging;
