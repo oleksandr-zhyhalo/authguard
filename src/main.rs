@@ -1,27 +1,33 @@
-use std::error::Error;
-use tokio;
-use crate::aws_iot::get_aws_credentials;
+use anyhow::{Context, Result};
+// use crate::{aws_iot, config, logging};
 
+// Declare modules
 mod config;
 mod aws_iot;
+mod logging;
 
-use crate::config::Config;
-
-const CONFIG_PATH: &str = "remote.conf";
-
-// Make the main function async via the tokio runtime.
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    // 1. Load the configuration
-    let config = Config::load(CONFIG_PATH)?;
-    println!("Loaded config: {:?}", config);
-    let _client = aws_iot::build_client(&config).await?;
-    let creds =     get_aws_credentials(&config, &_client).await?;
-    println!("Got credentials: {:?}", creds);
+async fn main() -> Result<()> {
+    let _guard = logging::setup_logging().context("Failed to initialize logging")?;
 
-    // 3. Here you could proceed to:
-    //    - Write them to .aws/credentials
-    //    - Set up a refresh loop, etc.
+    let config_path = config::default_config_path()
+        .context("Failed to locate configuration file")?;
+
+    let config = config::Config::load(&config_path)
+        .context("Failed to load configuration")?;
+
+    tracing::info!(path = ?config_path, "Loaded configuration");
+
+    let client = aws_iot::create_mtls_client(&config)
+        .await
+        .context("Failed to create mTLS client")?;
+
+    let credentials = aws_iot::get_aws_credentials(&config, &client)
+        .await
+        .context("Failed to retrieve AWS credentials")?;
+
+    aws_iot::format_credential_output(&credentials)
+        .context("Failed to format credentials output")?;
 
     Ok(())
 }
