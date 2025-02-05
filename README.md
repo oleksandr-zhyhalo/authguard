@@ -4,7 +4,6 @@
 
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/oleksandr-zhyhalo/authguard)
 ![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 A secure credentials manager for AWS IoT devices. Simplifies the process of obtaining AWS credentials through IoT device certificates.
 
