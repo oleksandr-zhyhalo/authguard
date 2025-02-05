@@ -14,3 +14,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "chrono"] }
 thiserror = "1.0"
 tracing-appender = "0.2"
+openssl = { version = "0.10", features = ["vendored"] }
