@@ -1,0 +1,185 @@
+# authguard 🛡️
+
+<div align="center">
+
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/oleksandr-zhyhalo/authguard)
+![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+
+A secure credentials manager for AWS IoT devices. Simplifies the process of obtaining AWS credentials through IoT device certificates.
+
+[Installation](#installation) •
+[Features](#features) •
+[Usage](#usage) •
+[Configuration](#configuration) •
+[Contributing](#contributing)
+
+</div>
+
+## ✨ Features
+
+- 🔐 **Secure mTLS Authentication**: Uses device certificates for AWS IoT authentication
+- 🔄 **Automatic Credential Management**: Handles AWS credential rotation
+- 📦 **AWS CLI Integration**: Works seamlessly with AWS CLI credential_process
+- 📝 **Structured Logging**: JSON logging for audit trails
+- 🔍 **Detailed Error Handling**: Clear error messages and proper error propagation
+- 💻 **Cross-Platform**: Statically linked binary works on any Linux system
+
+## 🚀 Installation
+
+### Using Install Script (Recommended)
+
+```bash
+curl -o- https://raw.githubusercontent.com/oleksandr-zhyhalo/authguard/main/install.sh | sudo bash
+# or with wget
+wget -qO- https://raw.githubusercontent.com/oleksandr-zhyhalo/authguard/main/install.sh | sudo bash
+```
+
+### Manual Installation
+
+1. Download the latest release for your platform from [releases page](https://github.com/oleksandr-zhyhalo/authguard/releases)
+2. Install manually:
+```bash
+# Extract the archive
+tar xzf authguard-linux-*.tar.gz
+
+# Create directories
+sudo mkdir -p /etc/authguard /var/log/authguard
+
+# Install binary
+sudo install -m 755 authguard/authguard /usr/local/bin/
+
+# Set up config and logs (replace 'your-username' with your actual username)
+sudo chown your-username:your-username /etc/authguard /var/log/authguard
+sudo chmod 700 /etc/authguard /var/log/authguard
+
+# Install config if needed
+sudo install -m 600 -o your-username authguard/authguard.conf.sample /etc/authguard/authguard.conf
+```
+
+## 📚 Configuration
+
+### AWS IoT Setup
+
+1. Create an IoT thing and download certificates
+2. Create a role alias in AWS IoT
+3. Attach appropriate policies to your certificates
+
+For more details read:
+[Authorizing direct calls to AWS services using AWS IoT Core credential provider
+   ](https://docs.aws.amazon.com/iot/latest/developerguide/authorizing-direct-aws.html)
+
+### Configuration File
+
+Create or edit `/etc/authguard/authguard.conf`:
+```ini
+aws_iot_endpoint = your-iot-endpoint.iot.region.amazonaws.com
+role_alias = your-role-alias
+cert_path = /path/to/certificate.pem
+key_path = /path/to/private-key.pem
+ca_path = /path/to/root-ca.pem
+```
+
+### AWS CLI Integration
+
+Add to your AWS CLI config (`~/.aws/config`):
+```ini
+[profile your-profile]
+credential_process = /usr/local/bin/authguard
+```
+
+## 📂 Directory Structure
+
+```
+/etc/authguard/
+├── authguard.conf         # Main configuration
+└── authguard.conf.sample  # Sample configuration
+
+/var/log/authguard/
+└── authguard.log         # Application logs
+
+/usr/local/bin/
+└── authguard            # Binary executable
+```
+
+## 🔨 Usage
+
+### Testing Configuration
+
+Verify your setup:
+```bash
+# Test credential retrieval
+aws sts get-caller-identity --profile your-profile
+
+# Check logs
+tail -f /var/log/authguard/authguard.log
+```
+
+### Common Operations
+
+```bash
+# Direct credential retrieval
+authguard
+
+# With debug output
+AWS_PROFILE=your-profile aws sts get-caller-identity --debug
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Permission Denied**
+   ```bash
+   # Check directory ownership
+   ls -la /etc/authguard /var/log/authguard
+   # Should show your user as owner
+   ```
+
+2. **Configuration Errors**
+   ```bash
+   # Verify config file permissions
+   ls -l /etc/authguard/authguard.conf
+   # Should be: -rw------- username username
+   ```
+
+3. **AWS CLI Integration**
+   ```bash
+   # Verify credential process is working
+   aws configure list --profile your-profile
+   ```
+
+### Log Output
+
+Example log entry:
+```json
+{
+  "timestamp": "2025-02-05T12:00:00Z",
+  "level": "INFO",
+  "message": "Successfully retrieved AWS credentials",
+  "target": "authguard",
+  "expiration": "2025-02-05T13:00:00Z"
+}
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how you can help:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Commit changes: `git commit -am 'Add feature'`
+4. Push to branch: `git push origin feature-name`
+5. Submit a Pull Request
+
+## 📄 License
+
+See the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+Made with ❤️ for secure AWS IoT authentication
+
+[Report Bug](https://github.com/oleksandr-zhyhalo/authguard/issues) • [Request Feature](https://github.com/oleksandr-zhyhalo/authguard/issues)
+</div>
