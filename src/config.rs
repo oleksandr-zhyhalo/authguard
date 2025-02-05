@@ -37,7 +37,7 @@ impl Config {
     }
 }
 pub fn default_config_path() -> Result<PathBuf> {
-    let paths = ["/etc/authguard/authguard.conf.sample"];
+    let paths = ["/etc/authguard/authguard.conf"];
 
     for path in &paths {
         let path = PathBuf::from(path);
