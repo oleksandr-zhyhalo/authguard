@@ -1,0 +1,82 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          # Linux x86_64 (GNU)
+          - target: x86_64-unknown-linux-gnu
+            artifact_name: authguard
+            asset_name: authguard-linux-x86_64
+            use_container: false
+          # Linux x86_64 (MUSL)
+          - target: x86_64-unknown-linux-musl
+            artifact_name: authguard
+            asset_name: authguard-linux-x86_64-musl
+            use_container: true
+
+    steps:
+      # Check out repository
+      - uses: actions/checkout@v3
+
+      # Install Rust toolchain (for GNU build)
+      - name: Install Rust
+        if: "!matrix.use_container"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      # MUSL build using Docker
+      - name: Build MUSL Binary
+        if: matrix.use_container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: messense/rust-musl-cross:x86_64-musl
+          options: -v ${{ github.workspace }}:/home/rust/src
+          run: |
+            cd /home/rust/src
+            cargo build --release --target x86_64-unknown-linux-musl
+
+      # Regular GNU build
+      - name: Regular Build
+        if: "!matrix.use_container"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # Package assets
+      - name: Package Release Assets
+        run: |
+          mkdir -p release/authguard
+          # Copy binary
+          if [ "${{ matrix.use_container }}" = "true" ]; then
+            cp target/x86_64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/authguard/
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+          fi
+          # Copy config sample
+          cp configs/authguard.conf.sample release/authguard/
+          # Create archive
+          cd release
+          tar czf ${{ matrix.asset_name }}.tar.gz authguard/
+          # Generate checksum
+          sha256sum ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+        shell: bash
+
+      # Upload to GitHub Release
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/${{ matrix.asset_name }}.tar.gz
+            release/${{ matrix.asset_name }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
