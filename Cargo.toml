@@ -16,3 +16,4 @@ thiserror = "1.0"
 tracing-appender = "0.2"
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = "0.9"
+chrono = "0.4.39"

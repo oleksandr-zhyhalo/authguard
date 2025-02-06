@@ -8,6 +8,7 @@ BINARY_NAME="authguard"
 BINARY_PATH="/usr/local/bin/${BINARY_NAME}"
 CONFIG_DIR="/etc/authguard"
 LOG_DIR="/var/log/authguard"
+CACHE_DIR="/var/cache/authguard"
 
 # Color output
 RED='\033[0;31m'
@@ -167,6 +168,7 @@ main() {
     # Create required directories
     mkdir -p "${CONFIG_DIR}"
     mkdir -p "${LOG_DIR}"
+    mkdir -p "${CACHE_DIR}"
 
     # Set directory permissions
     # Config directory and files owned by the user
@@ -176,6 +178,10 @@ main() {
     # Log directory owned by the user
     chown ${SUDO_USER}:$(get_group_name) "${LOG_DIR}"
     chmod 700 "${LOG_DIR}"
+
+    # Cache directory owned by the user
+    chown ${SUDO_USER}:$(get_group_name) "${CACHE_DIR}"
+    chmod 700 "${CACHE_DIR}"
 
     # Install binary and config
     install_binary
