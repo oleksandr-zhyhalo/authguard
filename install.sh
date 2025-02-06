@@ -69,6 +69,15 @@ get_os() {
     esac
 }
 
+# Get appropriate group name based on OS
+get_group_name() {
+    if [ "$(get_os)" = "macos" ]; then
+        echo "staff"
+    else
+        echo "${SUDO_USER}"
+    fi
+}
+
 # Download and install binary
 install_binary() {
     local version tmp_dir asset_name download_url
@@ -131,10 +140,10 @@ install_binary() {
     # Install config
     if [ ! -f "${CONFIG_DIR}/authguard.conf" ]; then
         info "Installing default configuration..."
-        install -m 600 -o ${SUDO_USER} -g ${SUDO_USER} "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf"
     else
         info "Config file already exists, installing sample as reference..."
-        install -m 600 -o ${SUDO_USER} -g ${SUDO_USER} "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf.sample"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf.sample"
     fi
 
     success "Downloaded and installed $version"
@@ -161,11 +170,11 @@ main() {
 
     # Set directory permissions
     # Config directory and files owned by the user
-    chown ${SUDO_USER}:${SUDO_USER} "${CONFIG_DIR}"
+    chown ${SUDO_USER}:$(get_group_name) "${CONFIG_DIR}"
     chmod 700 "${CONFIG_DIR}"
 
     # Log directory owned by the user
-    chown ${SUDO_USER}:${SUDO_USER} "${LOG_DIR}"
+    chown ${SUDO_USER}:$(get_group_name) "${LOG_DIR}"
     chmod 700 "${LOG_DIR}"
 
     # Install binary and config

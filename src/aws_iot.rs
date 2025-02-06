@@ -20,36 +20,64 @@ pub struct AwsCredentials {
     pub expiration: String,
 }
 
-#[instrument]
+#[instrument(skip(config))]
 pub async fn create_mtls_client(config: &super::config::Config) -> Result<Client> {
-    // validate_key_permissions(&config.key_path)
-    //     .context("Invalid private key permissions")?;
+    let ca_cert = match load_pem(&config.ca_path) {
+        Ok(cert) => cert,
+        Err(e) => {
+            tracing::error!(error = ?e, path = ?config.ca_path, "Failed to load CA certificate");
+            return Err(e);
+        }
+    };
 
-    let ca_cert = load_pem(&config.ca_path)
-        .context("Failed to load CA certificate")?;
+    let client_cert = match load_pem(&config.cert_path) {
+        Ok(cert) => cert,
+        Err(e) => {
+            tracing::error!(error = ?e, path = ?config.cert_path, "Failed to load client certificate");
+            return Err(e);
+        }
+    };
 
-    let client_cert = load_pem(&config.cert_path)
-        .context("Failed to load client certificate")?;
+    let client_key = match load_pem(&config.key_path) {
+        Ok(key) => key,
+        Err(e) => {
+            tracing::error!(error = ?e, path = ?config.key_path, "Failed to load client private key");
+            return Err(e);
+        }
+    };
 
-    let client_key = load_pem(&config.key_path)
-        .context("Failed to load client private key")?;
+    let identity = match Identity::from_pem(&[client_cert, client_key].concat()) {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to create client identity");
+            return Err(e.into());
+        }
+    };
 
-    let identity = Identity::from_pem(&[client_cert, client_key].concat())
-        .context("Failed to create client identity")?;
+    let ca_cert = match Certificate::from_pem(&ca_cert) {
+        Ok(cert) => cert,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to parse CA certificate");
+            return Err(e.into());
+        }
+    };
 
-    let ca_cert = Certificate::from_pem(&ca_cert)
-        .context("Failed to parse CA certificate")?;
-
-    Client::builder()
+    match Client::builder()
         .use_rustls_tls()
         .add_root_certificate(ca_cert)
         .identity(identity)
         .timeout(std::time::Duration::from_secs(15))
         .build()
-        .context("Failed to build HTTP client")
+    {
+        Ok(client) => Ok(client),
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to build HTTP client");
+            Err(e.into())
+        }
+    }
 }
 
-#[instrument(skip(client))]
+#[instrument(skip(config, client))]
 pub async fn get_aws_credentials(
     config: &super::config::Config,
     client: &Client,
@@ -59,24 +87,38 @@ pub async fn get_aws_credentials(
         config.aws_iot_endpoint, config.role_alias
     );
 
-    let response = client.get(&url)
-        .send()
-        .await
-        .context("Failed to send credentials request")?;
+    let response = match client.get(&url).send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::error!(error = ?e, url = %url, "Failed to send credentials request");
+            return Err(e.into());
+        }
+    };
 
     if !response.status().is_success() {
-        anyhow::bail!(
-            "Credentials request failed with status: {}",
-            response.status()
-        );
+        let error_msg = format!("Credentials request failed with status: {}", response.status());
+        tracing::error!(status = %response.status(), url = %url, "Request failed");
+        anyhow::bail!(error_msg);
     }
 
-    let body = response.text()
-        .await
-        .context("Failed to read response body")?;
+    let body = match response.text().await {
+        Ok(text) => text,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to read response body");
+            return Err(e.into());
+        }
+    };
 
-    serde_json::from_str(&body)
-        .context("Failed to parse credentials response")
+    let credentials = match serde_json::from_str(&body) {
+        Ok(creds) => creds,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to parse credentials response");
+            return Err(e.into());
+        }
+    };
+
+    tracing::info!("Successfully retrieved AWS credentials");
+    Ok(credentials)
 }
 
 pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
@@ -88,7 +130,9 @@ pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
         "Expiration": creds.credentials.expiration
     });
 
+    // Only print to stdout, not to logs
     println!("{}", serde_json::to_string(&output)?);
+    tracing::info!("Successfully formatted credentials for output");
     Ok(())
 }
 

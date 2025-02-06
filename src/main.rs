@@ -8,24 +8,50 @@ mod logging;
 async fn main() -> Result<()> {
     let _guard = logging::setup_logging().context("Failed to initialize logging")?;
 
-    let config_path = config::default_config_path()
-        .context("Failed to locate configuration file")?;
+    let config_path = match config::default_config_path() {
+        Ok(path) => path,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to locate configuration file");
+            return Err(e);
+        }
+    };
 
-    let config = config::Config::load(&config_path)
-        .context("Failed to load configuration")?;
+    let config = match config::Config::load(&config_path) {
+        Ok(cfg) => {
+            tracing::info!(path = ?config_path, "Loaded configuration");
+            cfg
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, path = ?config_path, "Failed to load configuration");
+            return Err(e);
+        }
+    };
 
-    tracing::info!(path = ?config_path, "Loaded configuration");
+    let client = match aws_iot::create_mtls_client(&config).await {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::error!(error = ?e, "Failed to create mTLS client");
+            return Err(e);
+        }
+    };
 
-    let client = aws_iot::create_mtls_client(&config)
-        .await
-        .context("Failed to create mTLS client")?;
+    let credentials = match aws_iot::get_aws_credentials(&config, &client).await {
+        Ok(creds) => creds,
+        Err(e) => {
+            tracing::error!(
+                error = ?e,
+                endpoint = %config.aws_iot_endpoint,
+                role_alias = %config.role_alias,
+                "Failed to retrieve AWS credentials"
+            );
+            return Err(e);
+        }
+    };
 
-    let credentials = aws_iot::get_aws_credentials(&config, &client)
-        .await
-        .context("Failed to retrieve AWS credentials")?;
-
-    aws_iot::format_credential_output(&credentials)
-        .context("Failed to format credentials output")?;
+    if let Err(e) = aws_iot::format_credential_output(&credentials) {
+        tracing::error!(error = ?e, "Failed to format credentials output");
+        return Err(e);
+    }
 
     Ok(())
 }

@@ -15,12 +15,20 @@ pub fn setup_logging() -> Result<WorkerGuard> {
     let file_layer = fmt::layer()
         .json()
         .with_writer(non_blocking_writer)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_span_events(fmt::format::FmtSpan::NONE)
         .with_filter(EnvFilter::new("info"));
 
     let stdout_layer = fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
         .with_timer(fmt::time::time())
+        .with_target(true)
+        .with_span_events(fmt::format::FmtSpan::NONE)
         .with_filter(EnvFilter::new("info"));
 
     tracing_subscriber::registry()

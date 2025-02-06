@@ -54,6 +54,11 @@ pub fn default_config_path() -> Result<PathBuf> {
 
 fn validate_file_exists(path: &Path, description: &str) -> Result<()> {
     if !path.exists() {
+        tracing::error!(
+            path = ?path,
+            description = description,
+            "Required file not found"
+        );
         anyhow::bail!("{} not found at {}", description, path.display());
     }
     Ok(())
@@ -103,6 +108,7 @@ mod config_parser {
 
         for (name, value) in required {
             if value.is_empty() {
+                tracing::error!(field = name, "Missing required configuration field");
                 anyhow::bail!(ConfigError::MissingField(name.to_string()));
             }
         }
