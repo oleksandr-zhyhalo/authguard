@@ -1,0 +1,20 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.zip binary
+*.tar.gz binary
+
+# Rust specific
+Cargo.lock linguist-generated
+
+# Force bash scripts to use LF
+*.sh text eol=lf
+install.sh text eol=lf 

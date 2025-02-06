@@ -3,3 +3,33 @@
 Cargo.lock
 certs/
 config.conf
+
+# Cache files
+/var/cache/authguard/
+*.cache
+# Rust specific caches
+**/*.rs.bk
+*.pdb
++.cargo/
++.rustc_info.json
+
+# Build artifacts
+debug/
+release/
+target/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor specific
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# Debug files
+*.log
+*.bak
