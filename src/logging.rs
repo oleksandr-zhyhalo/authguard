@@ -19,7 +19,7 @@ pub fn setup() -> Result<WorkerGuard, std::io::Error> {
         .with_filter(EnvFilter::new("info"));
 
     tracing_subscriber::registry()
-        .with(file_layer
+        .with(file_layer)
         .with(stdout_layer)
         .init();
 
