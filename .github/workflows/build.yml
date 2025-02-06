@@ -102,53 +102,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-macos-build:
-  name: macOS Build and Release
-  runs-on: macos-latest
-  permissions:
-    contents: write
-  strategy:
-    matrix:
-      include:
-        - target: x86_64-apple-darwin
-          artifact_name: authguard
-          asset_name: authguard-macos-x86_64
-        - target: aarch64-apple-darwin
-          artifact_name: authguard
-          asset_name: authguard-macos-aarch64
+  macos-build:
+    name: macOS Build and Release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            artifact_name: authguard
+            asset_name: authguard-macos-x86_64
+          - target: aarch64-apple-darwin
+            artifact_name: authguard
+            asset_name: authguard-macos-aarch64
 
-  steps:
-    - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        toolchain: stable
-        targets: ${{ matrix.target }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
 
-    - name: Install OpenSSL
-      run: brew install openssl
+      - name: Install OpenSSL
+        run: brew install openssl
 
-    - name: Build Binary
-      env:
-        OPENSSL_INCLUDE_DIR: $(brew --prefix openssl)/include
-        OPENSSL_LIB_DIR: $(brew --prefix openssl)/lib
-      run: cargo build --release --target ${{ matrix.target }}
+      - name: Build Binary
+        env:
+          OPENSSL_INCLUDE_DIR: $(brew --prefix openssl)/include
+          OPENSSL_LIB_DIR: $(brew --prefix openssl)/lib
+        run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Package Release Assets
-      run: |
-        mkdir -p release/authguard
-        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
-        cp configs/authguard.conf.sample release/authguard/
-        cd release
-        tar czf ${{ matrix.asset_name }}.tar.gz authguard/
-        shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+      - name: Package Release Assets
+        run: |
+          mkdir -p release/authguard
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+          cp configs/authguard.conf.sample release/authguard/
+          cd release
+          tar czf ${{ matrix.asset_name }}.tar.gz authguard/
+          shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
 
-    - name: Upload Release Assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          release/${{ matrix.asset_name }}.tar.gz
-          release/${{ matrix.asset_name }}.tar.gz.sha256
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/${{ matrix.asset_name }}.tar.gz
+            release/${{ matrix.asset_name }}.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
