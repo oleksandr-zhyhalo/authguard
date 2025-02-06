@@ -20,6 +20,9 @@ pub enum Error {
 
     #[error("HTTP client error: {0}")]
     HttpClient(#[from] reqwest::Error),
+
+    #[error("Cache error: {0}")]
+    CacheError(String),
 }
 
 #[derive(Debug, Error)]

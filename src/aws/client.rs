@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::utils::filesystem;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AwsCredentialsResponse {
     pub credentials: AwsCredentials,
 }

@@ -41,7 +41,7 @@ impl CredentialManager {
             .timestamp() as u64;
 
         let cached = CachedCredentials {
-            credentials: creds.clone(),
+            credentials: (*creds).clone(),
             expires_at,
         };
 

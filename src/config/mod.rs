@@ -1,5 +1,8 @@
+mod parser;
+
 use serde::Deserialize;
 use std::path::PathBuf;
+use anyhow::Context;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -22,14 +25,13 @@ fn default_cache_path() -> PathBuf { PathBuf::from("/var/cache/authguard/credent
 
 impl Config {
     pub fn load<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
-        let content = std::fs::read_to_string(path)?;
-        let mut config: Self = config_parser::parse_config(&content)?;
+        let content = std::fs::read_to_string(path)
+            .context("Failed to read config file")?;
+        
+        parser::parse_config(&content)
+    }
 
-        // Set defaults if not in config
-        if config.cache_threshold_seconds == 0 {
-            config.cache_threshold_seconds = default_cache_threshold();
-        }
-
-        Ok(config)
+    pub fn default_path() -> anyhow::Result<std::path::PathBuf> {
+        Ok(std::path::PathBuf::from("/etc/authguard/authguard.conf"))
     }
 }

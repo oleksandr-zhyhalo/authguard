@@ -1,6 +1,10 @@
 use crate::config::PathBuf;
 use crate::config::Config;
 use crate::error::{ConfigError, Error};
+use anyhow::Context;
+use serde::Deserialize;
+use std::fs;
+use std::path::Path;
 
 pub fn parse(content: &str) -> Result<Config, Error> {
     let mut config = Config {
@@ -43,4 +47,9 @@ fn validate_required_fields(config: &Config) -> Result<(), ConfigError> {
         return Err(ConfigError::MissingField("role_alias".into()));
     }
     Ok(())
+}
+
+pub fn parse_config<P: AsRef<Path>>(content: &str) -> anyhow::Result<super::Config> {
+    serde_json::from_str(content)
+        .context("Failed to parse config file")
 }
