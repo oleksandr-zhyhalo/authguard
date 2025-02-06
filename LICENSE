@@ -1,27 +1,21 @@
-Proprietary License
-Copyright (c) 2025 Oleksandr Zhyhalo
-All rights reserved.
+MIT License
 
-Grant of License
-Subject to the terms and conditions of this License, the Licensor hereby grants to you a worldwide, non-exclusive license to use, reproduce, modify, display, perform, and distribute the software and associated documentation files (the "Software") for commercial and non-commercial purposes.
-Ownership
-This License does not transfer ownership of the Software to you. The Software is licensed, not sold. The Licensor retains exclusive ownership of all copies, modifications, and derivatives of the Software and all related intellectual property rights.
-Revocation
-3.1. The Licensor reserves the right to revoke this License at any time and for any reason by providing written notice to you.
-3.2. Written notice may be provided via email, GitHub notification, or other verifiable electronic communication.
-3.3. Upon receiving notice of revocation, you shall have thirty (30) days (the "Wind-down Period") to cease all use of the Software.
-3.4. During the Wind-down Period, you may continue using the Software solely for the purpose of transitioning away from it.
-Effects of Revocation
-4.1. Upon expiration of the Wind-down Period, you must:
-a) Immediately cease all use of the Software
-b) Delete or destroy all copies of the Software in your possession
-c) Remove the Software from all systems under your control
-d) Cease distribution of any products or services that incorporate the Software
-No Sublicensing
-You may not sublicense, sell, lease, or rent the Software to any third party.
-No Warranty
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-Governing Law
-This License shall be governed by and construed in accordance with the laws of Poland, without regard to its conflict of law provisions.
-Entire Agreement
-This License constitutes the entire agreement between the parties with respect to the use of the Software and supersedes all prior or contemporaneous understandings regarding such subject matter.
+Copyright (c) 2025 Oleksandr Zhyhalo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
