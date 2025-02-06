@@ -31,50 +31,68 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      # ... rest of existing Linux steps
 
-  macos-build:
-    name: macOS Build and Release
-    runs-on: macos-latest
-    permissions:
-      contents: write
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-apple-darwin
-            artifact_name: authguard
-            asset_name: authguard-macos-x86_64
-          - target: aarch64-apple-darwin
-            artifact_name: authguard
-            asset_name: authguard-macos-aarch64
+      # Install build essentials for vendored OpenSSL
+      - name: Install Build Dependencies (GNU)
+        if: "!matrix.use_container"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config
 
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      # MUSL build using Docker
+      - name: Build MUSL Binary
+        if: matrix.use_container
+        uses: addnab/docker-run-action@v3
         with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
+          image: messense/rust-musl-cross:x86_64-musl
+          options: -v ${{ github.workspace }}:/home/rust/src
+          run: |
+            cd /home/rust/src
+            # Install build dependencies
+            apk update && apk add \
+              build-base \
+              pkgconfig \
+              perl \
+              make \
+              gcc \
+              musl-dev \
+              linux-headers
+            
+            # Set environment variables for OpenSSL build
+            export PKG_CONFIG_ALLOW_CROSS=1
+            export OPENSSL_STATIC=1
+            export OPENSSL_DIR=/usr/local/musl
+            
+            # Build with MUSL target
+            cargo build --release --target x86_64-unknown-linux-musl
 
-      - name: Install OpenSSL
-        run: brew install openssl
-
-      - name: Build Binary
+      # Regular GNU build
+      - name: Regular Build
+        if: "!matrix.use_container"
         env:
-          OPENSSL_INCLUDE_DIR: $(brew --prefix openssl)/include
-          OPENSSL_LIB_DIR: $(brew --prefix openssl)/lib
+          OPENSSL_STATIC: 1
         run: cargo build --release --target ${{ matrix.target }}
 
+      # Package assets
       - name: Package Release Assets
         run: |
           mkdir -p release/authguard
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+          # Copy binary
+          if [ "${{ matrix.use_container }}" = "true" ]; then
+            cp target/x86_64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/authguard/
+          else
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+          fi
+          # Copy config sample
           cp configs/authguard.conf.sample release/authguard/
+          # Create archive
           cd release
           tar czf ${{ matrix.asset_name }}.tar.gz authguard/
-          shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+          # Generate checksum
+          sha256sum ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+        shell: bash
 
+      # Upload to GitHub Release
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
@@ -83,3 +101,54 @@ jobs:
             release/${{ matrix.asset_name }}.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+macos-build:
+  name: macOS Build and Release
+  runs-on: macos-latest
+  permissions:
+    contents: write
+  strategy:
+    matrix:
+      include:
+        - target: x86_64-apple-darwin
+          artifact_name: authguard
+          asset_name: authguard-macos-x86_64
+        - target: aarch64-apple-darwin
+          artifact_name: authguard
+          asset_name: authguard-macos-aarch64
+
+  steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: ${{ matrix.target }}
+
+    - name: Install OpenSSL
+      run: brew install openssl
+
+    - name: Build Binary
+      env:
+        OPENSSL_INCLUDE_DIR: $(brew --prefix openssl)/include
+        OPENSSL_LIB_DIR: $(brew --prefix openssl)/lib
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Package Release Assets
+      run: |
+        mkdir -p release/authguard
+        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+        cp configs/authguard.conf.sample release/authguard/
+        cd release
+        tar czf ${{ matrix.asset_name }}.tar.gz authguard/
+        shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
+
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/${{ matrix.asset_name }}.tar.gz
+          release/${{ matrix.asset_name }}.tar.gz.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
