@@ -131,19 +131,19 @@ install_binary() {
 
     # Verify and install files
     [ ! -f "$tmp_dir/authguard/authguard" ] && error "Binary not found in downloaded archive"
-    [ ! -f "$tmp_dir/authguard/authguard.conf.sample" ] && error "Config sample not found in downloaded archive"
+    [ ! -f "$tmp_dir/authguard/authguard.toml.sample" ] && error "Config sample not found in downloaded archive"
 
     # Install binary
     info "Installing binary to ${BINARY_PATH}..."
     install -m 755 "$tmp_dir/authguard/authguard" "$BINARY_PATH"
 
     # Install config
-    if [ ! -f "${CONFIG_DIR}/authguard.conf" ]; then
+    if [ ! -f "${CONFIG_DIR}/authguard.toml" ]; then
         info "Installing default configuration..."
-        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.toml.sample" "${CONFIG_DIR}/authguard.toml"
     else
         info "Config file already exists, installing sample as reference..."
-        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.conf.sample" "${CONFIG_DIR}/authguard.conf.sample"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.toml.sample" "${CONFIG_DIR}/authguard.toml.sample"
     fi
 
     success "Downloaded and installed $version"
