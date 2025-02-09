@@ -8,6 +8,7 @@ BINARY_NAME="authguard"
 BINARY_PATH="/usr/local/bin/${BINARY_NAME}"
 CONFIG_DIR="/etc/authguard"
 LOG_DIR="/var/log/authguard"
+CACHE_DIR="/var/cache/authguard"   # NEW: Directory for cached credentials & circuit breaker state
 
 # Color output
 RED='\033[0;31m'
@@ -102,7 +103,6 @@ install_binary() {
     trap 'rm -rf "$tmp_dir"' EXIT
 
     # Download binary (using MUSL build for better compatibility)
-    local asset_name
     case "$os" in
         linux)
             asset_name="authguard-${os}-${arch}-musl.tar.gz"
@@ -167,6 +167,7 @@ main() {
     # Create required directories
     mkdir -p "${CONFIG_DIR}"
     mkdir -p "${LOG_DIR}"
+    mkdir -p "${CACHE_DIR}"   # NEW: Create the cache directory
 
     # Set directory permissions
     # Config directory and files owned by the user
@@ -176,6 +177,10 @@ main() {
     # Log directory owned by the user
     chown ${SUDO_USER}:$(get_group_name) "${LOG_DIR}"
     chmod 700 "${LOG_DIR}"
+
+    # Cache directory owned by the user
+    chown ${SUDO_USER}:$(get_group_name) "${CACHE_DIR}"
+    chmod 700 "${CACHE_DIR}"
 
     # Install binary and config
     install_binary

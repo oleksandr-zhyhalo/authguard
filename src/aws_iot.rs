@@ -2,7 +2,10 @@ use anyhow::{Context, Result};
 use reqwest::{Certificate, Identity, Client};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
+use std::thread::sleep;
+use std::time::Duration;
 use tracing::instrument;
+use crate::circuit_breaker;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AwsCredentialsResponse {
@@ -87,38 +90,54 @@ pub async fn get_aws_credentials(
         config.aws_iot_endpoint, config.role_alias
     );
 
-    let response = match client.get(&url).send().await {
-        Ok(resp) => resp,
-        Err(e) => {
-            tracing::error!(error = ?e, url = %url, "Failed to send credentials request");
-            return Err(e.into());
-        }
-    };
-
-    if !response.status().is_success() {
-        let error_msg = format!("Credentials request failed with status: {}", response.status());
-        tracing::error!(status = %response.status(), url = %url, "Request failed");
-        anyhow::bail!(error_msg);
+    // Check the circuit breaker first (see below)
+    if circuit_breaker::is_open() {
+        anyhow::bail!("Circuit breaker is open; skipping AWS credentials call");
     }
 
-    let body = match response.text().await {
-        Ok(text) => text,
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to read response body");
-            return Err(e.into());
-        }
-    };
+    let max_attempts = 3;
+    let mut attempts = 0;
+    let mut delay = Duration::from_secs(1);
+    let mut last_err = None;
 
-    let credentials = match serde_json::from_str(&body) {
-        Ok(creds) => creds,
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to parse credentials response");
-            return Err(e.into());
+    loop {
+        attempts += 1;
+        let response = client.get(&url).send().await;
+        match response {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    let body = resp.text().await
+                        .with_context(|| "Failed to read response body")?;
+                    let credentials: AwsCredentialsResponse = serde_json::from_str(&body)
+                        .with_context(|| "Failed to parse credentials response")?;
+                    // Reset the circuit breaker on success
+                    circuit_breaker::record_success();
+                    tracing::info!("Successfully retrieved AWS credentials");
+                    return Ok(credentials);
+                } else {
+                    let status = resp.status();
+                    last_err = Some(anyhow::anyhow!("Credentials request failed with status: {}", status));
+                    tracing::error!(status = %status, url = %url, "Request failed");
+                }
+            }
+            Err(e) => {
+                last_err = Some(e.into());
+                tracing::error!(error = ?last_err, url = %url, "Failed to send credentials request");
+            }
         }
-    };
 
-    tracing::info!("Successfully retrieved AWS credentials");
-    Ok(credentials)
+        // Record failure for circuit breaker
+        circuit_breaker::record_failure();
+
+        if attempts >= max_attempts {
+            break;
+        }
+        tracing::info!("Retrying AWS credentials request in {:?}", delay);
+        tokio::time::sleep(delay).await;
+        delay *= 2;
+    }
+
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("Unknown error retrieving AWS credentials")))
 }
 
 pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
