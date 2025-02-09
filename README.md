@@ -23,7 +23,7 @@ A secure credentials manager for AWS IoT devices. Simplifies the process of obta
 - 📝 **Structured Logging**: JSON logging for audit trails
 - 🔍 **Detailed Error Handling**: Clear error messages and proper error propagation
 - 💻 **Cross-Platform**: Statically linked binary works on any Linux system
-
+- 💾 **Credential Caching**: Local caching mechanism for AWS credentials to reduce unnecessary network calls
 ## 🚀 Installation
 
 ### Using Install Script (Recommended)
