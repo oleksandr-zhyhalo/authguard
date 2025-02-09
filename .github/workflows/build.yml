@@ -84,7 +84,7 @@ jobs:
             cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
           fi
           # Copy config sample
-          cp configs/authguard.conf.sample release/authguard/
+          cp configs/authguard.toml.sample release/authguard/
           # Create archive
           cd release
           tar czf ${{ matrix.asset_name }}.tar.gz authguard/
@@ -139,7 +139,7 @@ jobs:
         run: |
           mkdir -p release/authguard
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
-          cp configs/authguard.conf.sample release/authguard/
+          cp configs/authguard.toml.sample release/authguard/
           cd release
           tar czf ${{ matrix.asset_name }}.tar.gz authguard/
           shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
