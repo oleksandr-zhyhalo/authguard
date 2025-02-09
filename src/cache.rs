@@ -11,9 +11,10 @@ use fs2::FileExt;
 const CACHE_FILE: &str = "/var/cache/authguard/creds_cache.json";
 pub fn read_cached_credentials() -> Result<Option<AwsCredentialsResponse>> {
     let path = PathBuf::from(CACHE_FILE);
-    if path.exists() {
+    // Corrected the existence check
+    if !path.exists() {
         return Ok(None);
-    };
+    }
     let file = OpenOptions::new()
         .read(true)
         .open(&path)
@@ -54,17 +55,17 @@ pub fn write_cached_credentials(creds: &AwsCredentialsResponse) -> Result<()> {
     Ok(())
 }
 pub fn needs_refresh(creds: &AwsCredentialsResponse) -> bool {
-    // Parse the expiration timestamp. We assume it's in RFC 3339 format.
     let expiration = match DateTime::parse_from_rfc3339(&creds.credentials.expiration) {
         Ok(dt) => dt.with_timezone(&Utc),
         Err(err) => {
             eprintln!("Warning: Could not parse expiration timestamp: {}", err);
-            // If parsing fails, force a refresh.
             return true;
         }
     };
 
     let now = Utc::now();
-    // If less than 10 minutes remain until expiration, return true.
-    now >= expiration - Duration::minutes(10)
+    let refresh_time = expiration - Duration::minutes(10);
+    tracing::debug!("Current time: {} | Expiration: {} | Refresh threshold: {}", now, expiration, refresh_time);
+
+    now >= refresh_time
 }
