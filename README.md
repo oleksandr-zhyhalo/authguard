@@ -5,9 +5,9 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/oleksandr-zhyhalo/authguard)
 ![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)
 
-A secure credentials manager for AWS IoT devices. Simplifies the process of obtaining AWS credentials through IoT device certificates.
+A secure credentials manager for AWS IoT devices with local caching and multi-environments setup.
 
-[Installation](#installation) •
+[Installation](#Installation) •
 [Features](#features) •
 [Usage](#usage) •
 [Configuration](#configuration) •
@@ -71,13 +71,29 @@ For more details read:
 
 ### Configuration File
 
-Create or edit `/etc/authguard/authguard.conf`:
-```ini
-aws_iot_endpoint = your-iot-endpoint.iot.region.amazonaws.com
-role_alias = your-role-alias
-cert_path = /path/to/certificate.pem
-key_path = /path/to/private-key.pem
-ca_path = /path/to/root-ca.pem
+Create or edit `/etc/authguard/authguard.toml`:
+```toml
+cache_dir = "/var/cache/authguard"
+log_dir = "/var/log/authguard"
+circuit_breaker_threshold = 5
+cool_down_seconds = 120
+
+[environment]
+current = "dev"
+
+[environment.dev]
+aws_iot_endpoint = "dev-ats.iot.us-west-2.amazonaws.com"
+role_alias = "dev-role-alias"
+cert_path = "/etc/authguard/dev/cert.pem"
+key_path = "/etc/authguard/dev/key.pem"
+ca_path = "/etc/authguard/dev/root-ca.pem"
+
+[environment.prod]
+aws_iot_endpoint = "prod-ats.iot.us-west-2.amazonaws.com"
+role_alias = "prod-role-alias"
+cert_path = "/etc/authguard/prod/cert.pem"
+key_path = "/etc/authguard/prod/key.pem"
+ca_path = "/etc/authguard/prod/root-ca.pem"
 ```
 
 ### AWS CLI Integration
