@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 mod config;
 mod aws_iot;
 mod logging;
+mod cache;
 
 #[tokio::main]
 async fn main() -> Result<()> {
