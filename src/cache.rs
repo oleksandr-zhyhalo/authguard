@@ -1,4 +1,3 @@
-#![feature(file_lock)]
 use crate::aws_iot::AwsCredentialsResponse;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
@@ -7,6 +6,7 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::PathBuf;
+use fs2::FileExt;
 
 const CACHE_FILE: &str = "/var/cache/authguard/creds_cache.json";
 pub fn read_cached_credentials() -> Result<Option<AwsCredentialsResponse>> {
@@ -52,4 +52,19 @@ pub fn write_cached_credentials(creds: &AwsCredentialsResponse) -> Result<()> {
     file.unlock()
         .with_context(|| "Failed to release lock on cache file")?;
     Ok(())
+}
+pub fn needs_refresh(creds: &AwsCredentialsResponse) -> bool {
+    // Parse the expiration timestamp. We assume it's in RFC 3339 format.
+    let expiration = match DateTime::parse_from_rfc3339(&creds.credentials.expiration) {
+        Ok(dt) => dt.with_timezone(&Utc),
+        Err(err) => {
+            eprintln!("Warning: Could not parse expiration timestamp: {}", err);
+            // If parsing fails, force a refresh.
+            return true;
+        }
+    };
+
+    let now = Utc::now();
+    // If less than 10 minutes remain until expiration, return true.
+    now >= expiration - Duration::minutes(10)
 }
