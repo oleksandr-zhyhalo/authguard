@@ -54,7 +54,7 @@ sudo chown your-username:your-username /etc/authguard /var/log/authguard
 sudo chmod 700 /etc/authguard /var/log/authguard
 
 # Install config if needed
-sudo install -m 600 -o your-username authguard/authguard.conf.sample /etc/authguard/authguard.conf
+sudo install -m 600 -o your-username authguard/authguard.toml.sample /etc/authguard/authguard.conf
 ```
 
 ## 📚 Configuration

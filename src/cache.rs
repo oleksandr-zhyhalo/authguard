@@ -8,9 +8,8 @@ use std::io::Read;
 use std::path::PathBuf;
 use fs2::FileExt;
 
-const CACHE_FILE: &str = "/var/cache/authguard/creds_cache.json";
-pub fn read_cached_credentials() -> Result<Option<AwsCredentialsResponse>> {
-    let path = PathBuf::from(CACHE_FILE);
+pub fn read_cached_credentials(cache_path: &PathBuf) -> Result<Option<AwsCredentialsResponse>> {
+    let path = PathBuf::from(cache_path);
     // Corrected the existence check
     if !path.exists() {
         return Ok(None);
@@ -36,8 +35,8 @@ pub fn read_cached_credentials() -> Result<Option<AwsCredentialsResponse>> {
     Ok(Some(creds))
 }
 
-pub fn write_cached_credentials(creds: &AwsCredentialsResponse) -> Result<()> {
-    let path = PathBuf::from(CACHE_FILE);
+pub fn write_cached_credentials(cache_path: &PathBuf, creds: &AwsCredentialsResponse) -> Result<()> {
+    let path = PathBuf::from(cache_path);
     // Open (or create) the file for writing and acquire an exclusive lock
     let file = OpenOptions::new().write(true).create(true).open(&path)
         .with_context(|| format!("Failed to open cache file for writing: {}", path.display()))?;

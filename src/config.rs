@@ -1,10 +1,36 @@
+// src/config.rs
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_cache_dir")]
+    pub cache_dir: PathBuf,
+
+    #[serde(default = "default_log_dir")]
+    pub log_dir: PathBuf,
+
+    #[serde(default = "default_circuit_breaker_threshold")]
+    pub circuit_breaker_threshold: u32,
+
+    #[serde(default = "default_cool_down_seconds")]
+    pub cool_down_seconds: u64,
+
+    #[serde(rename = "environment")]
+    pub env_config: EnvironmentConfig,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EnvironmentConfig {
+    pub current: String,
+    #[serde(flatten)]
+    pub profiles: std::collections::HashMap<String, EnvironmentProfile>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct EnvironmentProfile {
     pub aws_iot_endpoint: String,
     pub role_alias: String,
     pub cert_path: PathBuf,
@@ -12,106 +38,77 @@ pub struct Config {
     pub ca_path: PathBuf,
 }
 
+// Default implementations
+fn default_cache_dir() -> PathBuf {
+    PathBuf::from("/var/cache/authguard")
+}
+
+fn default_log_dir() -> PathBuf {
+    PathBuf::from("/var/log/authguard")
+}
+
+fn default_circuit_breaker_threshold() -> u32 {
+    3
+}
+
+fn default_cool_down_seconds() -> u64 {
+    60
+}
+
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    #[error("Missing required configuration field: {0}")]
-    MissingField(String),
-    #[error("File does not exist: {0}")]
-    FileNotFound(String),
+    #[error("Missing environment configuration: {0}")]
+    MissingEnvironment(String),
 }
 
 impl Config {
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let content = std::fs::read_to_string(&path).context(format!(
-            "Failed to read config file: {}",
-            path.as_ref().display()
-        ))?;
+    pub fn load() -> Result<Self> {
+        let config_path = Self::find_config_file()?;
 
-        let mut config = config_parser::parse_config(&content)?;
+        let settings = config::Config::builder()
+            .add_source(config::File::from(config_path))
+            .build()
+            .context("Failed to build configuration")?;
 
-        validate_file_exists(&config.cert_path, "Client certificate")?;
-        validate_file_exists(&config.key_path, "Private key")?;
-        validate_file_exists(&config.ca_path, "CA certificate")?;
-
-        Ok(config)
-    }
-}
-pub fn default_config_path() -> Result<PathBuf> {
-    let paths = ["/etc/authguard/authguard.conf"];
-
-    for path in &paths {
-        let path = PathBuf::from(path);
-        if path.exists() {
-            return Ok(path);
-        }
+        settings.try_deserialize()
+            .context("Failed to deserialize configuration")
     }
 
-    anyhow::bail!(
-        "No configuration file found in default locations: {:?}",
-        paths
-    )
-}
-
-fn validate_file_exists(path: &Path, description: &str) -> Result<()> {
-    if !path.exists() {
-        tracing::error!(
-            path = ?path,
-            description = description,
-            "Required file not found"
-        );
-        anyhow::bail!("{} not found at {}", description, path.display());
-    }
-    Ok(())
-}
-
-mod config_parser {
-    use super::*;
-
-    pub fn parse_config(content: &str) -> Result<Config> {
-        let mut config = Config {
-            aws_iot_endpoint: String::new(),
-            role_alias: String::new(),
-            cert_path: PathBuf::new(),
-            key_path: PathBuf::new(),
-            ca_path: PathBuf::new(),
-        };
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            let mut parts = line.splitn(2, '=');
-            let key = parts.next().context("Invalid config line")?.trim();
-            let value = parts.next().context("Missing config value")?.trim();
-
-            match key {
-                "aws_iot_endpoint" => config.aws_iot_endpoint = value.to_string(),
-                "role_alias" => config.role_alias = value.to_string(),
-                "cert_path" => config.cert_path = PathBuf::from(value),
-                "key_path" => config.key_path = PathBuf::from(value),
-                "ca_path" => config.ca_path = PathBuf::from(value),
-                _ => tracing::warn!("Unknown configuration key: {}", key),
-            }
-        }
-
-        validate_required_fields(&config)?;
-        Ok(config)
-    }
-
-    fn validate_required_fields(config: &Config) -> Result<()> {
-        let required = [
-            ("aws_iot_endpoint", &config.aws_iot_endpoint),
-            ("role_alias", &config.role_alias),
+    fn find_config_file() -> Result<PathBuf> {
+        let paths = [
+            "/etc/authguard/authguard.toml",
+            "./authguard.toml"
         ];
 
-        for (name, value) in required {
-            if value.is_empty() {
-                tracing::error!(field = name, "Missing required configuration field");
-                anyhow::bail!(ConfigError::MissingField(name.to_string()));
+        for path in &paths {
+            let path = PathBuf::from(path);
+            if path.exists() {
+                return Ok(path);
             }
         }
+
+        anyhow::bail!("No configuration file found in default locations")
+    }
+
+    pub fn active_profile(&self) -> Result<&EnvironmentProfile> {
+        self.env_config.profiles.get(&self.env_config.current)
+            .ok_or_else(|| ConfigError::MissingEnvironment(self.env_config.current.clone()).into())
+    }
+
+    pub fn validate_paths(&self) -> Result<()> {
+        let profile = self.active_profile()?;
+
+        let validate = |path: &Path, desc: &str| {
+            if !path.exists() {
+                tracing::error!(?path, "File not found: {}", desc);
+                anyhow::bail!("{} not found at {}", desc, path.display())
+            }
+            Ok(())
+        };
+
+        validate(&profile.cert_path, "Client certificate")?;
+        validate(&profile.key_path, "Private key")?;
+        validate(&profile.ca_path, "CA certificate")?;
 
         Ok(())
     }

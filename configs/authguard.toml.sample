@@ -1,0 +1,21 @@
+cache_dir = "/var/cache/authguard"
+log_dir = "/var/log/authguard"
+circuit_breaker_threshold = 5
+cool_down_seconds = 120
+
+[environment]
+current = "dev"
+
+[environment.dev]
+aws_iot_endpoint = "dev-ats.iot.us-west-2.amazonaws.com"
+role_alias = "dev-role-alias"
+cert_path = "/etc/authguard/dev/cert.pem"
+key_path = "/etc/authguard/dev/key.pem"
+ca_path = "/etc/authguard/dev/root-ca.pem"
+
+[environment.prod]
+aws_iot_endpoint = "prod-ats.iot.us-west-2.amazonaws.com"
+role_alias = "prod-role-alias"
+cert_path = "/etc/authguard/prod/cert.pem"
+key_path = "/etc/authguard/prod/key.pem"
+ca_path = "/etc/authguard/prod/root-ca.pem"

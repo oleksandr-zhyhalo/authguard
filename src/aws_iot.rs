@@ -6,6 +6,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::instrument;
 use crate::circuit_breaker;
+use crate::config::EnvironmentProfile;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AwsCredentialsResponse {
@@ -24,7 +25,7 @@ pub struct AwsCredentials {
 }
 
 #[instrument(skip(config))]
-pub async fn create_mtls_client(config: &super::config::Config) -> Result<Client> {
+pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
     let ca_cert = match load_pem(&config.ca_path) {
         Ok(cert) => cert,
         Err(e) => {
@@ -64,7 +65,6 @@ pub async fn create_mtls_client(config: &super::config::Config) -> Result<Client
             return Err(e.into());
         }
     };
-
     match Client::builder()
         .use_rustls_tls()
         .add_root_certificate(ca_cert)
@@ -80,18 +80,18 @@ pub async fn create_mtls_client(config: &super::config::Config) -> Result<Client
     }
 }
 
-#[instrument(skip(config, client))]
 pub async fn get_aws_credentials(
-    config: &super::config::Config,
+    env_profile: &super::config::EnvironmentProfile,
+    app_config: &super::config::Config,
     client: &Client,
 ) -> Result<AwsCredentialsResponse> {
     let url = format!(
         "https://{}/role-aliases/{}/credentials",
-        config.aws_iot_endpoint, config.role_alias
+        env_profile.aws_iot_endpoint, env_profile.role_alias
     );
 
     // Check the circuit breaker first (see below)
-    if circuit_breaker::is_open() {
+    if circuit_breaker::is_open(&app_config.cache_dir, app_config.circuit_breaker_threshold, app_config.cool_down_seconds) {
         anyhow::bail!("Circuit breaker is open; skipping AWS credentials call");
     }
 
@@ -111,7 +111,7 @@ pub async fn get_aws_credentials(
                     let credentials: AwsCredentialsResponse = serde_json::from_str(&body)
                         .with_context(|| "Failed to parse credentials response")?;
                     // Reset the circuit breaker on success
-                    circuit_breaker::record_success();
+                    circuit_breaker::record_success(&app_config.cache_dir);
                     tracing::info!("Successfully retrieved AWS credentials");
                     return Ok(credentials);
                 } else {
@@ -127,7 +127,7 @@ pub async fn get_aws_credentials(
         }
 
         // Record failure for circuit breaker
-        circuit_breaker::record_failure();
+        circuit_breaker::record_failure(&app_config.cache_dir);
 
         if attempts >= max_attempts {
             break;
