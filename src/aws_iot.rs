@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use reqwest::{Certificate, Identity, Client};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
-use std::thread::sleep;
 use std::time::Duration;
 use tracing::instrument;
 use crate::circuit_breaker;
@@ -90,7 +89,6 @@ pub async fn get_aws_credentials(
         env_profile.aws_iot_endpoint, env_profile.role_alias
     );
 
-    // Check the circuit breaker first (see below)
     if circuit_breaker::is_open(&app_config.cache_dir, app_config.circuit_breaker_threshold, app_config.cool_down_seconds) {
         anyhow::bail!("Circuit breaker is open; skipping AWS credentials call");
     }
@@ -110,7 +108,6 @@ pub async fn get_aws_credentials(
                         .with_context(|| "Failed to read response body")?;
                     let credentials: AwsCredentialsResponse = serde_json::from_str(&body)
                         .with_context(|| "Failed to parse credentials response")?;
-                    // Reset the circuit breaker on success
                     circuit_breaker::record_success(&app_config.cache_dir);
                     tracing::info!("Successfully retrieved AWS credentials");
                     return Ok(credentials);
@@ -126,7 +123,6 @@ pub async fn get_aws_credentials(
             }
         }
 
-        // Record failure for circuit breaker
         circuit_breaker::record_failure(&app_config.cache_dir);
 
         if attempts >= max_attempts {
@@ -149,7 +145,6 @@ pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
         "Expiration": creds.credentials.expiration
     });
 
-    // Only print to stdout, not to logs
     println!("{}", serde_json::to_string(&output)?);
     tracing::info!("Successfully formatted credentials for output");
     Ok(())
@@ -158,23 +153,4 @@ pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
 fn load_pem(path: &Path) -> Result<Vec<u8>> {
     fs::read(path)
         .context(format!("Failed to read PEM file: {}", path.display()))
-}
-
-fn validate_key_permissions(path: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let metadata = fs::metadata(path)
-            .context(format!("Failed to get metadata for {}", path.display()))?;
-
-        let mode = metadata.permissions().mode();
-        if mode & 0o7777 != 0o600 {
-            anyhow::bail!(
-                "Insecure permissions for {}: expected 0600, got {:o}",
-                path.display(),
-                mode & 0o7777
-            );
-        }
-    }
-    Ok(())
 }

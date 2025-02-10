@@ -1,4 +1,3 @@
-// src/config.rs
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -38,7 +37,6 @@ pub struct EnvironmentProfile {
     pub ca_path: PathBuf,
 }
 
-// Default implementations
 fn default_cache_dir() -> PathBuf {
     PathBuf::from("/var/cache/authguard")
 }
