@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use reqwest::{Certificate, Identity, Client};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
@@ -6,6 +5,7 @@ use std::time::Duration;
 use tracing::instrument;
 use crate::circuit_breaker;
 use crate::config::EnvironmentProfile;
+use crate::utils::errors::{Error, Result};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AwsCredentialsResponse {
@@ -25,62 +25,51 @@ pub struct AwsCredentials {
 
 #[instrument(skip(config))]
 pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
-    let ca_cert = match load_pem(&config.ca_path) {
-        Ok(cert) => cert,
-        Err(e) => {
-            tracing::error!(error = ?e, path = ?config.ca_path, "Failed to load CA certificate");
-            return Err(e);
-        }
-    };
+    tracing::debug!(
+        cert_path = ?config.cert_path,
+        ca_path = ?config.ca_path,
+        key_path = ?config.key_path,
+        "Creating mTLS client"
+    );
 
-    let client_cert = match load_pem(&config.cert_path) {
-        Ok(cert) => cert,
-        Err(e) => {
-            tracing::error!(error = ?e, path = ?config.cert_path, "Failed to load client certificate");
-            return Err(e);
-        }
-    };
+    let ca_cert = load_pem(&config.ca_path)
+        .map_err(|e| Error::LoadCaCert {
+            path: config.ca_path.clone(),
+            source: e,
+        })?;
 
-    let client_key = match load_pem(&config.key_path) {
-        Ok(key) => key,
-        Err(e) => {
-            tracing::error!(error = ?e, path = ?config.key_path, "Failed to load client private key");
-            return Err(e);
-        }
-    };
+    let client_cert = load_pem(&config.cert_path)
+        .map_err(|e| Error::LoadClientCert {
+            path: config.cert_path.clone(),
+            source: e,
+        })?;
 
-    let identity = match Identity::from_pem(&[client_cert, client_key].concat()) {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to create client identity");
-            return Err(e.into());
-        }
-    };
+    let client_key = load_pem(&config.key_path)
+        .map_err(|e| Error::LoadPrivateKey {
+            path: config.key_path.clone(),
+            source: e,
+        })?;
 
-    let ca_cert = match Certificate::from_pem(&ca_cert) {
-        Ok(cert) => cert,
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to parse CA certificate");
-            return Err(e.into());
-        }
-    };
-    match Client::builder()
+    let identity = Identity::from_pem(&[client_cert, client_key].concat())
+        .map_err(Error::HttpClient)?;
+
+    let ca_cert = Certificate::from_pem(&ca_cert)
+        .map_err(Error::HttpClient)?;
+
+    tracing::debug!("Successfully loaded all certificates");
+
+    Client::builder()
         .use_rustls_tls()
         .add_root_certificate(ca_cert)
         .identity(identity)
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(Duration::from_secs(15))
         .build()
-    {
-        Ok(client) => Ok(client),
-        Err(e) => {
-            tracing::error!(error = ?e, "Failed to build HTTP client");
-            Err(e.into())
-        }
-    }
+        .map_err(Error::HttpClient)
 }
 
+#[instrument(skip(client), fields(endpoint = %env_profile.aws_iot_endpoint))]
 pub async fn get_aws_credentials(
-    env_profile: &super::config::EnvironmentProfile,
+    env_profile: &EnvironmentProfile,
     app_config: &super::config::Config,
     client: &Client,
 ) -> Result<AwsCredentialsResponse> {
@@ -90,52 +79,65 @@ pub async fn get_aws_credentials(
     );
 
     if circuit_breaker::is_open(&app_config.cache_dir, app_config.circuit_breaker_threshold, app_config.cool_down_seconds) {
-        anyhow::bail!("Circuit breaker is open; skipping AWS credentials call");
+        tracing::warn!("Circuit breaker is open, skipping credentials request");
+        return Err(Error::CircuitBreakerOpen);
     }
 
     let max_attempts = 3;
     let mut attempts = 0;
     let mut delay = Duration::from_secs(1);
-    let mut last_err = None;
 
-    loop {
+    while attempts < max_attempts {
         attempts += 1;
-        let response = client.get(&url).send().await;
-        match response {
-            Ok(resp) => {
-                if resp.status().is_success() {
-                    let body = resp.text().await
-                        .with_context(|| "Failed to read response body")?;
-                    let credentials: AwsCredentialsResponse = serde_json::from_str(&body)
-                        .with_context(|| "Failed to parse credentials response")?;
-                    circuit_breaker::record_success(&app_config.cache_dir);
-                    tracing::info!("Successfully retrieved AWS credentials");
-                    return Ok(credentials);
-                } else {
-                    let status = resp.status();
-                    last_err = Some(anyhow::anyhow!("Credentials request failed with status: {}", status));
-                    tracing::error!(status = %status, url = %url, "Request failed");
+        tracing::debug!(attempt = attempts, "Attempting to fetch AWS credentials");
+
+        match client.get(&url).send().await {
+            Ok(response) => {
+                let status = response.status();
+                tracing::debug!(status = %status, "Received response");
+
+                if status.is_success() {
+                    match response.json::<AwsCredentialsResponse>().await {
+                        Ok(creds) => {
+                            tracing::info!("Successfully retrieved AWS credentials");
+                            return Ok(creds);
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "Failed to parse credentials response");
+                            circuit_breaker::record_failure(&app_config.cache_dir)?;
+                            // Use HttpClient error instead of trying to convert to JsonParse
+                            return Err(Error::HttpClient(e));
+                        }
+                    }
+                }
+
+                circuit_breaker::record_failure(&app_config.cache_dir)?;
+                if attempts == max_attempts {
+                    return Err(Error::CredentialsRequest {
+                        url: url.clone(),
+                        status,
+                    });
                 }
             }
             Err(e) => {
-                last_err = Some(e.into());
-                tracing::error!(error = ?last_err, url = %url, "Failed to send credentials request");
+                tracing::error!(error = ?e, attempt = attempts, "Request failed");
+                circuit_breaker::record_failure(&app_config.cache_dir)?;
+
+                if attempts == max_attempts {
+                    return Err(Error::HttpClient(e));
+                }
             }
         }
 
-        circuit_breaker::record_failure(&app_config.cache_dir);
-
-        if attempts >= max_attempts {
-            break;
-        }
-        tracing::info!("Retrying AWS credentials request in {:?}", delay);
+        tracing::debug!(delay_ms = ?delay.as_millis(), "Retrying request after delay");
         tokio::time::sleep(delay).await;
         delay *= 2;
     }
 
-    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("Unknown error retrieving AWS credentials")))
+    unreachable!("Loop should return before this point");
 }
 
+#[instrument(skip(creds))]
 pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
     let output = serde_json::json!({
         "Version": 1,
@@ -145,12 +147,15 @@ pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
         "Expiration": creds.credentials.expiration
     });
 
-    println!("{}", serde_json::to_string(&output)?);
-    tracing::info!("Successfully formatted credentials for output");
-    Ok(())
+    serde_json::to_string(&output)
+        .map_err(Error::JsonParse)
+        .and_then(|json| {
+            println!("{}", json);
+            tracing::info!("Successfully formatted credentials for output");
+            Ok(())
+        })
 }
 
-fn load_pem(path: &Path) -> Result<Vec<u8>> {
+fn load_pem(path: &Path) -> std::io::Result<Vec<u8>> {
     fs::read(path)
-        .context(format!("Failed to read PEM file: {}", path.display()))
 }
