@@ -1,7 +1,6 @@
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-use thiserror::Error;
+use crate::utils::errors::{Error, ConfigError, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -53,12 +52,6 @@ fn default_cool_down_seconds() -> u64 {
     60
 }
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    #[error("Missing environment configuration: {0}")]
-    MissingEnvironment(String),
-}
-
 impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Self::find_config_file()?;
@@ -66,10 +59,11 @@ impl Config {
         let settings = config::Config::builder()
             .add_source(config::File::from(config_path))
             .build()
-            .context("Failed to build configuration")?;
+            .map_err(|e| Error::Config(ConfigError::LoadError(e.to_string())))?;
 
-        settings.try_deserialize()
-            .context("Failed to deserialize configuration")
+        settings
+            .try_deserialize()
+            .map_err(|e| Error::Config(ConfigError::LoadError(e.to_string())))
     }
 
     fn find_config_file() -> Result<PathBuf> {
@@ -85,12 +79,17 @@ impl Config {
             }
         }
 
-        anyhow::bail!("No configuration file found in default locations")
+        Err(Error::Config(ConfigError::LoadError(
+            "No configuration file found in default locations".to_string()
+        )))
     }
 
     pub fn active_profile(&self) -> Result<&EnvironmentProfile> {
-        self.env_config.profiles.get(&self.env_config.current)
-            .ok_or_else(|| ConfigError::MissingEnvironment(self.env_config.current.clone()).into())
+        self.env_config.profiles
+            .get(&self.env_config.current)
+            .ok_or_else(|| Error::Config(ConfigError::MissingEnvironment(
+                self.env_config.current.clone()
+            )))
     }
 
     pub fn validate_paths(&self) -> Result<()> {
@@ -98,10 +97,13 @@ impl Config {
 
         let validate = |path: &Path, desc: &str| {
             if !path.exists() {
-                tracing::error!(?path, "File not found: {}", desc);
-                anyhow::bail!("{} not found at {}", desc, path.display())
+                Err(Error::Config(ConfigError::FileNotFound {
+                    file: path.to_path_buf(),
+                    description: desc.to_string(),
+                }))
+            } else {
+                Ok(())
             }
-            Ok(())
         };
 
         validate(&profile.cert_path, "Client certificate")?;
