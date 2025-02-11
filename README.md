@@ -108,11 +108,16 @@ credential_process = /usr/local/bin/authguard
 
 ```
 /etc/authguard/
-├── authguard.conf         # Main configuration
-└── authguard.conf.sample  # Sample configuration
+├── authguard.toml         # Main configuration
+└── authguard.toml.sample  # Sample configuration
 
 /var/log/authguard/
-└── authguard.log         # Application logs
+├── authguard.log         # Current application log
+└── authguard.log.*      # Rotated log files
+
+/var/cache/authguard/
+├── creds_cache.json     # Cached credentials
+└── cb_state.json       # Circuit breaker state
 
 /usr/local/bin/
 └── authguard            # Binary executable
@@ -140,53 +145,6 @@ authguard
 # With debug output
 AWS_PROFILE=your-profile aws sts get-caller-identity --debug
 ```
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Permission Denied**
-   ```bash
-   # Check directory ownership
-   ls -la /etc/authguard /var/log/authguard
-   # Should show your user as owner
-   ```
-
-2. **Configuration Errors**
-   ```bash
-   # Verify config file permissions
-   ls -l /etc/authguard/authguard.conf
-   # Should be: -rw------- username username
-   ```
-
-3. **AWS CLI Integration**
-   ```bash
-   # Verify credential process is working
-   aws configure list --profile your-profile
-   ```
-
-### Log Output
-
-Example log entry:
-```json
-{
-  "timestamp": "2025-02-05T12:00:00Z",
-  "level": "INFO",
-  "message": "Successfully retrieved AWS credentials",
-  "target": "authguard",
-  "expiration": "2025-02-05T13:00:00Z"
-}
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how you can help:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit changes: `git commit -am 'Add feature'`
-4. Push to branch: `git push origin feature-name`
-5. Submit a Pull Request
 
 ## 📄 License
 
