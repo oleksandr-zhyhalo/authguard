@@ -23,8 +23,6 @@ async fn run() -> Result<()> {
         directory: config.log_dir.to_string_lossy().into_owned(),
         file_name: "authguard.log".to_string(),
         level: LogLevel::Info,
-        json_output: true,
-        retention_days: 7,
     };
 
     let _guard = utils::logging::setup_logging(&log_config)?;
@@ -57,7 +55,7 @@ async fn run() -> Result<()> {
                 })?;
 
             credentials_cache.write(&new_creds)?;
-            circuit_breaker::record_success(&config.cache_dir)?;
+            circuit_breaker::record_success(&config.cache_dir);
             new_creds
         }
     };

@@ -5,7 +5,7 @@ use std::time::Duration;
 use tracing::instrument;
 use crate::circuit_breaker;
 use crate::config::EnvironmentProfile;
-use crate::utils::errors::{Error, Result};
+use crate::utils::errors::{Error, Result}; // Import the Result type alias
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AwsCredentialsResponse {
@@ -25,13 +25,6 @@ pub struct AwsCredentials {
 
 #[instrument(skip(config))]
 pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
-    tracing::debug!(
-        cert_path = ?config.cert_path,
-        ca_path = ?config.ca_path,
-        key_path = ?config.key_path,
-        "Creating mTLS client"
-    );
-
     let ca_cert = load_pem(&config.ca_path)
         .map_err(|e| Error::LoadCaCert {
             path: config.ca_path.clone(),
@@ -51,12 +44,10 @@ pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
         })?;
 
     let identity = Identity::from_pem(&[client_cert, client_key].concat())
-        .map_err(Error::HttpClient)?;
+        .map_err(|e| Error::HttpClient(e))?;
 
     let ca_cert = Certificate::from_pem(&ca_cert)
-        .map_err(Error::HttpClient)?;
-
-    tracing::debug!("Successfully loaded all certificates");
+        .map_err(|e| Error::HttpClient(e))?;
 
     Client::builder()
         .use_rustls_tls()
@@ -67,7 +58,6 @@ pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
         .map_err(Error::HttpClient)
 }
 
-#[instrument(skip(client), fields(endpoint = %env_profile.aws_iot_endpoint))]
 pub async fn get_aws_credentials(
     env_profile: &EnvironmentProfile,
     app_config: &super::config::Config,
@@ -79,7 +69,6 @@ pub async fn get_aws_credentials(
     );
 
     if circuit_breaker::is_open(&app_config.cache_dir, app_config.circuit_breaker_threshold, app_config.cool_down_seconds) {
-        tracing::warn!("Circuit breaker is open, skipping credentials request");
         return Err(Error::CircuitBreakerOpen);
     }
 
@@ -87,57 +76,38 @@ pub async fn get_aws_credentials(
     let mut attempts = 0;
     let mut delay = Duration::from_secs(1);
 
-    while attempts < max_attempts {
+    loop {
         attempts += 1;
-        tracing::debug!(attempt = attempts, "Attempting to fetch AWS credentials");
-
         match client.get(&url).send().await {
             Ok(response) => {
-                let status = response.status();
-                tracing::debug!(status = %status, "Received response");
-
-                if status.is_success() {
-                    match response.json::<AwsCredentialsResponse>().await {
-                        Ok(creds) => {
-                            tracing::info!("Successfully retrieved AWS credentials");
-                            return Ok(creds);
-                        }
-                        Err(e) => {
-                            tracing::error!(error = ?e, "Failed to parse credentials response");
-                            circuit_breaker::record_failure(&app_config.cache_dir)?;
-                            // Use HttpClient error instead of trying to convert to JsonParse
-                            return Err(Error::HttpClient(e));
-                        }
-                    }
+                if response.status().is_success() {
+                    return response.json::<AwsCredentialsResponse>()
+                        .await
+                        .map_err(Error::HttpClient);
                 }
 
-                circuit_breaker::record_failure(&app_config.cache_dir)?;
-                if attempts == max_attempts {
-                    return Err(Error::CredentialsRequest {
-                        url: url.clone(),
-                        status,
-                    });
-                }
+                circuit_breaker::record_failure(&app_config.cache_dir);
+                return Err(Error::CredentialsRequest {
+                    url: url.clone(),
+                    status: response.status(),
+                });
             }
             Err(e) => {
-                tracing::error!(error = ?e, attempt = attempts, "Request failed");
-                circuit_breaker::record_failure(&app_config.cache_dir)?;
+                circuit_breaker::record_failure(&app_config.cache_dir);
+                tracing::error!(error = ?e, url = %url, "Failed to send credentials request");
 
-                if attempts == max_attempts {
+                if attempts >= max_attempts {
                     return Err(Error::HttpClient(e));
                 }
+
+                tracing::info!("Retrying AWS credentials request in {:?}", delay);
+                tokio::time::sleep(delay).await;
+                delay *= 2;
             }
         }
-
-        tracing::debug!(delay_ms = ?delay.as_millis(), "Retrying request after delay");
-        tokio::time::sleep(delay).await;
-        delay *= 2;
     }
-
-    unreachable!("Loop should return before this point");
 }
 
-#[instrument(skip(creds))]
 pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
     let output = serde_json::json!({
         "Version": 1,

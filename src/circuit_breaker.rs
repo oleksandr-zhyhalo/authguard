@@ -1,136 +1,48 @@
-use crate::utils::errors::{Error, Result};
-use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc, Duration};
+use serde::{Serialize, Deserialize};
 use std::path::{Path, PathBuf};
 use std::fs::{self, OpenOptions};
 use fs2::FileExt;
-use tracing::instrument;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum CircuitState {
-    Closed,
-    Open {
-        opened_at: DateTime<Utc>,
-    },
-    HalfOpen {
-        attempt_count: u32,
-        last_attempt: DateTime<Utc>,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct CircuitBreakerState {
-    state: CircuitState,
     failure_count: u32,
     last_failure: DateTime<Utc>,
-    consecutive_successes: u32,
 }
 
-impl CircuitBreakerState {
-    fn new() -> Self {
-        Self {
-            state: CircuitState::Closed,
-            failure_count: 0,
-            last_failure: Utc::now(),
-            consecutive_successes: 0,
-        }
-    }
-
-    fn should_allow_request(&self, threshold: u32, cool_down_seconds: u64) -> bool {
-        match &self.state {
-            CircuitState::Closed => true,
-            CircuitState::Open { opened_at } => {
-                let cool_down_duration = Duration::seconds(cool_down_seconds as i64);
-                if Utc::now() - *opened_at >= cool_down_duration {
-                    true // Allow transition to half-open
-                } else {
-                    false
-                }
-            }
-            CircuitState::HalfOpen { attempt_count, last_attempt } => {
-                // Allow one request every 5 seconds in half-open state
-                Utc::now() - *last_attempt >= Duration::seconds(5)
-            }
-        }
-    }
-}
-
-#[instrument(skip(cache_dir))]
 pub fn is_open(cache_dir: &Path, failure_threshold: u32, cool_down_seconds: u64) -> bool {
     let path = state_file_path(cache_dir);
-
-    match read_state(&path) {
-        Ok(state) => {
-            let should_allow = state.should_allow_request(failure_threshold, cool_down_seconds);
-            if !should_allow {
+    if let Ok(state) = read_state(&path) {
+        if state.failure_count >= failure_threshold {
+            let elapsed = Utc::now() - state.last_failure;
+            if elapsed < Duration::seconds(cool_down_seconds as i64) {
                 tracing::warn!(
-                    state = ?state.state,
-                    failure_count = state.failure_count,
-                    "Circuit breaker preventing request"
+                    "Circuit breaker is open (last failure {} seconds ago)",
+                    elapsed.num_seconds()
                 );
+                return true;
             }
-            !should_allow
-        }
-        Err(e) => {
-            tracing::debug!(error = ?e, "No circuit breaker state found");
-            false
         }
     }
+    false
 }
 
-#[instrument(skip(cache_dir))]
-pub fn record_failure(cache_dir: &Path) -> Result<()> {
+pub fn record_failure(cache_dir: &Path) {
     let path = state_file_path(cache_dir);
-    let mut state = read_state(&path).unwrap_or_else(|_| CircuitBreakerState::new());
+    let mut state = read_state(&path).unwrap_or_else(|_| CircuitBreakerState {
+        failure_count: 0,
+        last_failure: Utc::now(),
+    });
 
     state.failure_count += 1;
     state.last_failure = Utc::now();
-    state.consecutive_successes = 0;
-
-    // Update state based on failures
-    state.state = match state.state {
-        CircuitState::Closed if state.failure_count >= 3 => {
-            tracing::warn!("Circuit breaker transitioning to Open state");
-            CircuitState::Open { opened_at: Utc::now() }
-        }
-        CircuitState::HalfOpen { .. } => {
-            tracing::warn!("Circuit breaker returning to Open state from HalfOpen");
-            CircuitState::Open { opened_at: Utc::now() }
-        }
-        current_state => current_state,
-    };
-
-    write_state(&path, &state)
+    let _ = write_state(&path, &state);
 }
 
-#[instrument(skip(cache_dir))]
-pub fn record_success(cache_dir: &Path) -> Result<()> {
+pub fn record_success(cache_dir: &Path) {
     let path = state_file_path(cache_dir);
-    let mut state = read_state(&path).unwrap_or_else(|_| CircuitBreakerState::new());
-
-    state.consecutive_successes += 1;
-
-    // Update state based on successes
-    state.state = match state.state {
-        CircuitState::Open { .. } => {
-            tracing::info!("Circuit breaker transitioning to HalfOpen state");
-            CircuitState::HalfOpen {
-                attempt_count: 0,
-                last_attempt: Utc::now(),
-            }
-        }
-        CircuitState::HalfOpen { attempt_count, .. } if state.consecutive_successes >= 2 => {
-            tracing::info!("Circuit breaker transitioning to Closed state");
-            CircuitState::Closed
-        }
-        current_state => current_state,
-    };
-
-    if matches!(state.state, CircuitState::Closed) {
-        state.failure_count = 0;
-    }
-
-    write_state(&path, &state)
+    let _ = fs::remove_file(path);
 }
 
 fn state_file_path(cache_dir: &Path) -> PathBuf {
@@ -139,24 +51,23 @@ fn state_file_path(cache_dir: &Path) -> PathBuf {
 
 fn read_state(path: &Path) -> Result<CircuitBreakerState> {
     if !path.exists() {
-        return Ok(CircuitBreakerState::new());
+        anyhow::bail!("No circuit breaker state file");
     }
 
     let file = OpenOptions::new()
         .read(true)
         .open(path)
-        .map_err(Error::Io)?;
+        .context("Failed to open circuit breaker state file")?;
 
     file.lock_shared()
-        .map_err(Error::Io)?;
+        .context("Failed to acquire shared lock on circuit breaker file")?;
 
     let data = fs::read_to_string(path)
-        .map_err(Error::Io)?;
+        .context("Failed to read circuit breaker state file")?;
 
-    let _ = file.unlock();
-
+    file.unlock().ok();
     serde_json::from_str(&data)
-        .map_err(Error::JsonParse)
+        .context("Failed to parse circuit breaker state")
 }
 
 fn write_state(path: &Path, state: &CircuitBreakerState) -> Result<()> {
@@ -164,17 +75,17 @@ fn write_state(path: &Path, state: &CircuitBreakerState) -> Result<()> {
         .write(true)
         .create(true)
         .open(path)
-        .map_err(Error::Io)?;
+        .context("Failed to open circuit breaker state file for writing")?;
 
     file.lock_exclusive()
-        .map_err(Error::Io)?;
+        .context("Failed to acquire exclusive lock on circuit breaker state file")?;
 
     let data = serde_json::to_string(state)
-        .map_err(Error::JsonParse)?;
+        .context("Failed to serialize circuit breaker state")?;
 
     fs::write(path, data)
-        .map_err(Error::Io)?;
+        .context("Failed to write circuit breaker state")?;
 
-    let _ = file.unlock();
+    file.unlock().ok();
     Ok(())
 }
