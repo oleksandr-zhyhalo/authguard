@@ -58,10 +58,7 @@ pub enum ConfigError {
     MissingEnvironment(String),
 
     #[error("File not found: {file} ({description})")]
-    FileNotFound {
-        file: PathBuf,
-        description: String,
-    },
+    FileNotFound { file: PathBuf, description: String },
 
     #[error("Configuration load error: {0}")]
     LoadError(String),

@@ -1,5 +1,5 @@
 use crate::cache::CredentialCache;
-use crate::utils::errors::{Result};
+use crate::utils::errors::Result;
 use crate::utils::logging::{LogConfig, LogLevel};
 
 mod aws_iot;
@@ -30,12 +30,10 @@ async fn run() -> Result<()> {
     config.validate_paths()?;
     let profile = config.active_profile()?;
 
-    let client = aws_iot::create_mtls_client(profile)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = ?e, "Failed to create mTLS client");
-            e
-        })?;
+    let client = aws_iot::create_mtls_client(profile).await.map_err(|e| {
+        tracing::error!(error = ?e, "Failed to create mTLS client");
+        e
+    })?;
 
     let cache_path = config.cache_dir.join("creds_cache.json");
     let credentials_cache = CredentialCache::new(cache_path);

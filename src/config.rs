@@ -1,6 +1,6 @@
+use crate::utils::errors::{ConfigError, Error, Result};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-use crate::utils::errors::{Error, ConfigError, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -67,10 +67,7 @@ impl Config {
     }
 
     fn find_config_file() -> Result<PathBuf> {
-        let paths = [
-            "/etc/authguard/authguard.toml",
-            "./authguard.toml"
-        ];
+        let paths = ["/etc/authguard/authguard.toml", "./authguard.toml"];
 
         for path in &paths {
             let path = PathBuf::from(path);
@@ -80,16 +77,19 @@ impl Config {
         }
 
         Err(Error::Config(ConfigError::LoadError(
-            "No configuration file found in default locations".to_string()
+            "No configuration file found in default locations".to_string(),
         )))
     }
 
     pub fn active_profile(&self) -> Result<&EnvironmentProfile> {
-        self.env_config.profiles
+        self.env_config
+            .profiles
             .get(&self.env_config.current)
-            .ok_or_else(|| Error::Config(ConfigError::MissingEnvironment(
-                self.env_config.current.clone()
-            )))
+            .ok_or_else(|| {
+                Error::Config(ConfigError::MissingEnvironment(
+                    self.env_config.current.clone(),
+                ))
+            })
     }
 
     pub fn validate_paths(&self) -> Result<()> {

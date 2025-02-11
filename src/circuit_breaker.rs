@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc, Duration};
-use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
-use std::fs::{self, OpenOptions};
+use chrono::{DateTime, Duration, Utc};
 use fs2::FileExt;
+use serde::{Deserialize, Serialize};
+use std::fs::{self, OpenOptions};
+use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize)]
 struct CircuitBreakerState {
@@ -62,12 +62,10 @@ fn read_state(path: &Path) -> Result<CircuitBreakerState> {
     file.lock_shared()
         .context("Failed to acquire shared lock on circuit breaker file")?;
 
-    let data = fs::read_to_string(path)
-        .context("Failed to read circuit breaker state file")?;
+    let data = fs::read_to_string(path).context("Failed to read circuit breaker state file")?;
 
     file.unlock().ok();
-    serde_json::from_str(&data)
-        .context("Failed to parse circuit breaker state")
+    serde_json::from_str(&data).context("Failed to parse circuit breaker state")
 }
 
 fn write_state(path: &Path, state: &CircuitBreakerState) -> Result<()> {
@@ -80,11 +78,9 @@ fn write_state(path: &Path, state: &CircuitBreakerState) -> Result<()> {
     file.lock_exclusive()
         .context("Failed to acquire exclusive lock on circuit breaker state file")?;
 
-    let data = serde_json::to_string(state)
-        .context("Failed to serialize circuit breaker state")?;
+    let data = serde_json::to_string(state).context("Failed to serialize circuit breaker state")?;
 
-    fs::write(path, data)
-        .context("Failed to write circuit breaker state")?;
+    fs::write(path, data).context("Failed to write circuit breaker state")?;
 
     file.unlock().ok();
     Ok(())

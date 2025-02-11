@@ -1,6 +1,6 @@
 use crate::utils::errors::{Error, Result};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 use std::str::FromStr;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -105,15 +105,13 @@ pub fn setup_logging(config: &LogConfig) -> Result<()> {
 }
 
 fn create_log_dir(path: &str) -> Result<()> {
-    std::fs::create_dir_all(path)
-        .map_err(Error::Io)?;
+    std::fs::create_dir_all(path).map_err(Error::Io)?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o750);
-        std::fs::set_permissions(path, perms)
-            .map_err(Error::Io)?;
+        std::fs::set_permissions(path, perms).map_err(Error::Io)?;
     }
 
     Ok(())

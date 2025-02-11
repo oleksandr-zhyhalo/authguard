@@ -1,11 +1,12 @@
-use reqwest::{Certificate, Identity, Client};
-use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
-use std::time::Duration;
-use tracing::instrument;
 use crate::circuit_breaker;
 use crate::config::EnvironmentProfile;
-use crate::utils::errors::{Error, Result}; // Import the Result type alias
+use crate::utils::errors::{Error, Result};
+use reqwest::{Certificate, Client, Identity};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use std::{fs, path::Path};
+use tracing::instrument;
+// Import the Result type alias
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AwsCredentialsResponse {
@@ -25,29 +26,25 @@ pub struct AwsCredentials {
 
 #[instrument(skip(config))]
 pub async fn create_mtls_client(config: &EnvironmentProfile) -> Result<Client> {
-    let ca_cert = load_pem(&config.ca_path)
-        .map_err(|e| Error::LoadCaCert {
-            path: config.ca_path.clone(),
-            source: e,
-        })?;
+    let ca_cert = load_pem(&config.ca_path).map_err(|e| Error::LoadCaCert {
+        path: config.ca_path.clone(),
+        source: e,
+    })?;
 
-    let client_cert = load_pem(&config.cert_path)
-        .map_err(|e| Error::LoadClientCert {
-            path: config.cert_path.clone(),
-            source: e,
-        })?;
+    let client_cert = load_pem(&config.cert_path).map_err(|e| Error::LoadClientCert {
+        path: config.cert_path.clone(),
+        source: e,
+    })?;
 
-    let client_key = load_pem(&config.key_path)
-        .map_err(|e| Error::LoadPrivateKey {
-            path: config.key_path.clone(),
-            source: e,
-        })?;
+    let client_key = load_pem(&config.key_path).map_err(|e| Error::LoadPrivateKey {
+        path: config.key_path.clone(),
+        source: e,
+    })?;
 
     let identity = Identity::from_pem(&[client_cert, client_key].concat())
         .map_err(|e| Error::HttpClient(e))?;
 
-    let ca_cert = Certificate::from_pem(&ca_cert)
-        .map_err(|e| Error::HttpClient(e))?;
+    let ca_cert = Certificate::from_pem(&ca_cert).map_err(|e| Error::HttpClient(e))?;
 
     Client::builder()
         .use_rustls_tls()
@@ -68,7 +65,11 @@ pub async fn get_aws_credentials(
         env_profile.aws_iot_endpoint, env_profile.role_alias
     );
 
-    if circuit_breaker::is_open(&app_config.cache_dir, app_config.circuit_breaker_threshold, app_config.cool_down_seconds) {
+    if circuit_breaker::is_open(
+        &app_config.cache_dir,
+        app_config.circuit_breaker_threshold,
+        app_config.cool_down_seconds,
+    ) {
         return Err(Error::CircuitBreakerOpen);
     }
 
@@ -81,7 +82,8 @@ pub async fn get_aws_credentials(
         match client.get(&url).send().await {
             Ok(response) => {
                 if response.status().is_success() {
-                    return response.json::<AwsCredentialsResponse>()
+                    return response
+                        .json::<AwsCredentialsResponse>()
                         .await
                         .map_err(Error::HttpClient);
                 }
