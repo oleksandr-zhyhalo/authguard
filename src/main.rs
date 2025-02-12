@@ -2,12 +2,10 @@ use crate::cache::CredentialCache;
 use crate::utils::errors::Result;
 use crate::utils::logging::{LogConfig, LogLevel};
 
-mod aws_iot;
+mod aws;
 mod cache;
-mod circuit_breaker;
 mod config;
 mod utils;
-
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
@@ -30,10 +28,12 @@ async fn run() -> Result<()> {
     config.validate_paths()?;
     let profile = config.active_profile()?;
 
-    let client = aws_iot::create_mtls_client(profile).await.map_err(|e| {
-        tracing::error!(error = ?e, "Failed to create mTLS client");
-        e
-    })?;
+    let client = aws::client::create_mtls_client(profile)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = ?e, "Failed to create mTLS client");
+            e
+        })?;
 
     let cache_path = config.cache_dir.join("creds_cache.json");
     let credentials_cache = CredentialCache::new(cache_path);
@@ -45,7 +45,7 @@ async fn run() -> Result<()> {
         }
         _ => {
             tracing::info!("No valid cache or near expiration; fetching new credentials");
-            let new_creds = aws_iot::get_aws_credentials(profile, &config, &client)
+            let new_creds = aws::client::get_aws_credentials(profile, &client)
                 .await
                 .map_err(|e| {
                     tracing::error!(error = ?e, "Failed to retrieve AWS credentials");
@@ -53,11 +53,10 @@ async fn run() -> Result<()> {
                 })?;
 
             credentials_cache.write(&new_creds)?;
-            circuit_breaker::record_success(&config.cache_dir);
             new_creds
         }
     };
 
-    aws_iot::format_credential_output(&credentials)?;
+    aws::client::format_credential_output(&credentials)?;
     Ok(())
 }

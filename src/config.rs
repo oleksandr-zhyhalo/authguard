@@ -10,12 +10,6 @@ pub struct Config {
     #[serde(default = "default_log_dir")]
     pub log_dir: PathBuf,
 
-    #[serde(default = "default_circuit_breaker_threshold")]
-    pub circuit_breaker_threshold: u32,
-
-    #[serde(default = "default_cool_down_seconds")]
-    pub cool_down_seconds: u64,
-
     #[serde(rename = "environment")]
     pub env_config: EnvironmentConfig,
 }
@@ -42,14 +36,6 @@ fn default_cache_dir() -> PathBuf {
 
 fn default_log_dir() -> PathBuf {
     PathBuf::from("/var/log/authencore")
-}
-
-fn default_circuit_breaker_threshold() -> u32 {
-    3
-}
-
-fn default_cool_down_seconds() -> u64 {
-    60
 }
 
 impl Config {

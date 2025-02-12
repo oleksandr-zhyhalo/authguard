@@ -42,12 +42,6 @@ pub enum Error {
     #[error("Cache error: {0}")]
     Cache(String),
 
-    #[error("Circuit breaker open")]
-    CircuitBreakerOpen,
-
-    #[error("Invalid expiration format: {0}")]
-    InvalidExpiration(String),
-
     #[error("Logging setup error: {0}")]
     Logging(String),
 }
@@ -64,5 +58,4 @@ pub enum ConfigError {
     LoadError(String),
 }
 
-// Result type alias for cleaner signatures
 pub type Result<T> = std::result::Result<T, Error>;

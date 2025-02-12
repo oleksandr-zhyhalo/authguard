@@ -1,4 +1,4 @@
-use crate::aws_iot::AwsCredentialsResponse;
+use crate::aws::client::AwsCredentialsResponse;
 use crate::utils::errors::{Error, Result};
 use chrono::{DateTime, Duration, Utc};
 use fs2::FileExt;

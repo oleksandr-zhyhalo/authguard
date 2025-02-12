@@ -73,8 +73,6 @@ Create or edit `/etc/authencore/authencore.toml`:
 ```toml
 cache_dir = "/var/cache/authencore"
 log_dir = "/var/log/authencore"
-circuit_breaker_threshold = 5
-cool_down_seconds = 120
 
 [environment]
 current = "dev"
