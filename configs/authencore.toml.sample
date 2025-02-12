@@ -1,0 +1,19 @@
+cache_dir = "/var/cache/authencore"
+log_dir = "/var/log/authencore"
+
+[environment]
+current = "dev"
+
+[environment.dev]
+aws_iot_endpoint = "dev-ats.iot.us-west-2.amazonaws.com"
+role_alias = "dev-role-alias"
+cert_path = "/etc/authencore/dev/cert.pem"
+key_path = "/etc/authencore/dev/key.pem"
+ca_path = "/etc/authencore/dev/root-ca.pem"
+
+[environment.prod]
+aws_iot_endpoint = "prod-ats.iot.us-west-2.amazonaws.com"
+role_alias = "prod-role-alias"
+cert_path = "/etc/authencore/prod/cert.pem"
+key_path = "/etc/authencore/prod/key.pem"
+ca_path = "/etc/authencore/prod/root-ca.pem"
