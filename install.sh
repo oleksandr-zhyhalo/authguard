@@ -3,12 +3,12 @@
 set -e
 
 # Constants
-GITHUB_REPO="oleksandr-zhyhalo/authguard"
-BINARY_NAME="authguard"
+GITHUB_REPO="oleksandr-zhyhalo/authencore"
+BINARY_NAME="authencore"
 BINARY_PATH="/usr/local/bin/${BINARY_NAME}"
-CONFIG_DIR="/etc/authguard"
-LOG_DIR="/var/log/authguard"
-CACHE_DIR="/var/cache/authguard"   # NEW: Directory for cached credentials & circuit breaker state
+CONFIG_DIR="/etc/authencore"
+LOG_DIR="/var/log/authencore"
+CACHE_DIR="/var/cache/authencore"   # NEW: Directory for cached credentials & circuit breaker state
 
 # Color output
 RED='\033[0;31m'
@@ -105,10 +105,10 @@ install_binary() {
     # Download binary (using MUSL build for better compatibility)
     case "$os" in
         linux)
-            asset_name="authguard-${os}-${arch}-musl.tar.gz"
+            asset_name="authencore-${os}-${arch}-musl.tar.gz"
             ;;
         macos)
-            asset_name="authguard-${os}-${arch}.tar.gz"
+            asset_name="authencore-${os}-${arch}.tar.gz"
             ;;
         *)
             error "Unsupported OS: $os"
@@ -118,11 +118,11 @@ install_binary() {
 
     info "Downloading ${asset_name}..."
     if command_exists curl; then
-        curl -sL "$download_url" -o "$tmp_dir/authguard.tar.gz" || error "Failed to download authguard"
-        tar xzf "$tmp_dir/authguard.tar.gz" -C "$tmp_dir" || error "Failed to extract archive"
+        curl -sL "$download_url" -o "$tmp_dir/authencore.tar.gz" || error "Failed to download authencore"
+        tar xzf "$tmp_dir/authencore.tar.gz" -C "$tmp_dir" || error "Failed to extract archive"
     elif command_exists wget; then
-        wget -qO "$tmp_dir/authguard.tar.gz" "$download_url" || error "Failed to download authguard"
-        tar xzf "$tmp_dir/authguard.tar.gz" -C "$tmp_dir" || error "Failed to extract archive"
+        wget -qO "$tmp_dir/authencore.tar.gz" "$download_url" || error "Failed to download authencore"
+        tar xzf "$tmp_dir/authencore.tar.gz" -C "$tmp_dir" || error "Failed to extract archive"
     fi
 
     # Debug: List contents of tmp_dir
@@ -130,20 +130,20 @@ install_binary() {
     ls -la "$tmp_dir"
 
     # Verify and install files
-    [ ! -f "$tmp_dir/authguard/authguard" ] && error "Binary not found in downloaded archive"
-    [ ! -f "$tmp_dir/authguard/authguard.toml.sample" ] && error "Config sample not found in downloaded archive"
+    [ ! -f "$tmp_dir/authencore/authencore" ] && error "Binary not found in downloaded archive"
+    [ ! -f "$tmp_dir/authencore/authencore.toml.sample" ] && error "Config sample not found in downloaded archive"
 
     # Install binary
     info "Installing binary to ${BINARY_PATH}..."
-    install -m 755 "$tmp_dir/authguard/authguard" "$BINARY_PATH"
+    install -m 755 "$tmp_dir/authencore/authencore" "$BINARY_PATH"
 
     # Install config
-    if [ ! -f "${CONFIG_DIR}/authguard.toml" ]; then
+    if [ ! -f "${CONFIG_DIR}/authencore.toml" ]; then
         info "Installing default configuration..."
-        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.toml.sample" "${CONFIG_DIR}/authguard.toml"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authencore/authencore.toml.sample" "${CONFIG_DIR}/authencore.toml"
     else
         info "Config file already exists, installing sample as reference..."
-        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authguard/authguard.toml.sample" "${CONFIG_DIR}/authguard.toml.sample"
+        install -m 600 -o ${SUDO_USER} -g $(get_group_name) "$tmp_dir/authencore/authencore.toml.sample" "${CONFIG_DIR}/authencore.toml.sample"
     fi
 
     success "Downloaded and installed $version"
@@ -162,7 +162,7 @@ main() {
         error "Please run with sudo instead of as root directly"
     fi
 
-    info "Installing authguard..."
+    info "Installing authencore..."
 
     # Create required directories
     mkdir -p "${CONFIG_DIR}"
@@ -187,10 +187,10 @@ main() {
 
     success "Installation completed successfully!"
     echo
-    echo "To use authguard, add the following to your AWS CLI config (~/.aws/config):"
+    echo "To use authencore, add the following to your AWS CLI config (~/.aws/config):"
     echo
     echo "[profile your-profile]"
-    echo "credential_process = /usr/local/bin/authguard"
+    echo "credential_process = /usr/local/bin/authencore"
 }
 
 main

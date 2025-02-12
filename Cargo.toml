@@ -1,5 +1,5 @@
 [package]
-name = "authguard"
+name = "authencore"
 version = "1.1.15"
 edition = "2021"
 authors = ["Oleksandr Zhyhalo"]

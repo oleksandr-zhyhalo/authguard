@@ -21,7 +21,7 @@ async fn run() -> Result<()> {
 
     let log_config = LogConfig {
         directory: config.log_dir.to_string_lossy().into_owned(),
-        file_name: "authguard.log".to_string(),
+        file_name: "authencore.log".to_string(),
         level: LogLevel::Info,
     };
 

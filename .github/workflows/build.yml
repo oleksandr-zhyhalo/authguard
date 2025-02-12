@@ -14,12 +14,12 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            artifact_name: authguard
-            asset_name: authguard-linux-x86_64
+            artifact_name: authencore
+            asset_name: authencore-linux-x86_64
             use_container: false
           - target: x86_64-unknown-linux-musl
-            artifact_name: authguard
-            asset_name: authguard-linux-x86_64-musl
+            artifact_name: authencore
+            asset_name: authencore-linux-x86_64-musl
             use_container: true
 
     steps:
@@ -76,18 +76,18 @@ jobs:
       # Package assets
       - name: Package Release Assets
         run: |
-          mkdir -p release/authguard
+          mkdir -p release/authencore
           # Copy binary
           if [ "${{ matrix.use_container }}" = "true" ]; then
-            cp target/x86_64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/authguard/
+            cp target/x86_64-unknown-linux-musl/release/${{ matrix.artifact_name }} release/authencore/
           else
-            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
+            cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authencore/
           fi
           # Copy config sample
-          cp configs/authguard.toml.sample release/authguard/
+          cp configs/authencore.toml.sample release/authencore/
           # Create archive
           cd release
-          tar czf ${{ matrix.asset_name }}.tar.gz authguard/
+          tar czf ${{ matrix.asset_name }}.tar.gz authencore/
           # Generate checksum
           sha256sum ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
         shell: bash
@@ -111,11 +111,11 @@ jobs:
       matrix:
         include:
           - target: x86_64-apple-darwin
-            artifact_name: authguard
-            asset_name: authguard-macos-x86_64
+            artifact_name: authencore
+            asset_name: authencore-macos-x86_64
           - target: aarch64-apple-darwin
-            artifact_name: authguard
-            asset_name: authguard-macos-aarch64
+            artifact_name: authencore
+            asset_name: authencore-macos-aarch64
 
     steps:
       - uses: actions/checkout@v3
@@ -137,11 +137,11 @@ jobs:
 
       - name: Package Release Assets
         run: |
-          mkdir -p release/authguard
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authguard/
-          cp configs/authguard.toml.sample release/authguard/
+          mkdir -p release/authencore
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release/authencore/
+          cp configs/authencore.toml.sample release/authencore/
           cd release
-          tar czf ${{ matrix.asset_name }}.tar.gz authguard/
+          tar czf ${{ matrix.asset_name }}.tar.gz authencore/
           shasum -a 256 ${{ matrix.asset_name }}.tar.gz > ${{ matrix.asset_name }}.tar.gz.sha256
 
       - name: Upload Release Assets

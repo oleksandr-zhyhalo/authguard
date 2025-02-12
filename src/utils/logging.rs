@@ -63,8 +63,8 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            directory: "/var/log/authguard".to_string(),
-            file_name: "authguard.log".to_string(),
+            directory: "/var/log/authencore".to_string(),
+            file_name: "authencore.log".to_string(),
             level: LogLevel::Info,
         }
     }

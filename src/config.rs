@@ -37,11 +37,11 @@ pub struct EnvironmentProfile {
 }
 
 fn default_cache_dir() -> PathBuf {
-    PathBuf::from("/var/cache/authguard")
+    PathBuf::from("/var/cache/authencore")
 }
 
 fn default_log_dir() -> PathBuf {
-    PathBuf::from("/var/log/authguard")
+    PathBuf::from("/var/log/authencore")
 }
 
 fn default_circuit_breaker_threshold() -> u32 {
@@ -67,7 +67,7 @@ impl Config {
     }
 
     fn find_config_file() -> Result<PathBuf> {
-        let paths = ["/etc/authguard/authguard.toml", "./authguard.toml"];
+        let paths = ["/etc/authencore/authencore.toml", "./authencore.toml"];
 
         for path in &paths {
             let path = PathBuf::from(path);
