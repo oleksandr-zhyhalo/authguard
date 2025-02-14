@@ -8,9 +8,12 @@ mod config;
 mod utils;
 #[tokio::main]
 async fn main() {
-    if let Err(e) = run().await {
-        tracing::error!(error = ?e, "Application error");
-        std::process::exit(1);
+    match run().await {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = ?e, "Application error");
+            std::process::exit(1);
+        }
     }
 }
 

@@ -88,7 +88,9 @@ pub fn setup_logging(config: &LogConfig) -> Result<()> {
         .with_line_number(true)
         .with_filter(EnvFilter::new(config.level.to_filter_directive()));
 
-    let stdout_layer = fmt::layer()
+    // Direct stdout logs to stderr
+    let stderr_layer = fmt::layer()
+        .with_writer(std::io::stderr) // <-- Critical change
         .with_target(true)
         .with_thread_ids(true)
         .with_file(true)
@@ -97,7 +99,7 @@ pub fn setup_logging(config: &LogConfig) -> Result<()> {
 
     tracing_subscriber::registry()
         .with(file_layer)
-        .with(stdout_layer)
+        .with(stderr_layer) // <-- Use stderr instead of stdout
         .try_init()
         .map_err(|e| Error::Logging(format!("Failed to initialize logging: {}", e)))?;
 

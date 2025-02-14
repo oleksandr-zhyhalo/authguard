@@ -106,13 +106,12 @@ pub fn format_credential_output(creds: &AwsCredentialsResponse) -> Result<()> {
         "Expiration": creds.credentials.expiration
     });
 
-    serde_json::to_string(&output)
-        .map_err(Error::JsonParse)
-        .and_then(|json| {
-            println!("{}", json);
-            tracing::info!("Successfully formatted credentials for output");
-            Ok(())
-        })
+    // Print JSON to stdout
+    println!("{}", serde_json::to_string(&output).map_err(Error::JsonParse)?);
+
+    // Log success message to stderr
+    tracing::info!("Successfully formatted credentials for output");
+    Ok(())
 }
 
 fn load_pem(path: &Path) -> std::io::Result<Vec<u8>> {
